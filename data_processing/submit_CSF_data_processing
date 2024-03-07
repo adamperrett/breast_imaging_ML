@@ -7,6 +7,6 @@ module load tools/env/proxy
 
 source activate venv
 
-cd /mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML
+cd /mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/data_processing
 
 python3 dcm_processing.py

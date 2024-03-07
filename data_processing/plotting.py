@@ -24,7 +24,8 @@ def plot_scatter(true_values, pred_values, title, save_location=None):
         plt.savefig(save_location+"/{}.png".format(title), bbox_inches='tight',
                     # dpi=200,
                     format='png')
-    plt.show()
+    else:
+        plt.show()
 
 def plot_error_vs_vas(true_values, pred_values, title, save_location=None, min_e=-40, max_e=40):
     plt.figure(figsize=(10, 6))
@@ -41,7 +42,8 @@ def plot_error_vs_vas(true_values, pred_values, title, save_location=None, min_e
         plt.savefig(save_location+"/{}.png".format(title), bbox_inches='tight',
                     # dpi=200,
                     format='png')
-    plt.show()
+    else:
+        plt.show()
 
 def plot_error_distribution(true_values, pred_values, title, save_location=None):
     plt.figure(figsize=(10, 6))
@@ -54,4 +56,5 @@ def plot_error_distribution(true_values, pred_values, title, save_location=None)
         plt.savefig(save_location+"/{}.png".format(title), bbox_inches='tight',
                     # dpi=200,
                     format='png')
-    plt.show()
+    else:
+        plt.show()

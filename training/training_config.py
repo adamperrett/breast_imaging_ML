@@ -1,6 +1,29 @@
 import sys
 import os
 
+
+num_epochs = 600
+patience = 150
+lr = 0.003
+momentum = 0.9
+batch_size = 16
+op_choice = 'adam'
+
+weighted = 0
+transformed = 0
+
+raw = True
+pvas_loader = False
+split_CC_and_MLO = True
+CC_or_MLO = 'CC'
+
+by_patient = False
+if by_patient:
+    parallel_images = 8
+else:
+    parallel_images = 0
+
+
 on_CSF = True
 
 if on_CSF:
@@ -42,17 +65,12 @@ if on_CSF:
     n_images = config['n_images']
 
     working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    best_model_name = 'VAS_{}_{}_{}x{}_t{}_w{}_js{}'.format(
+    best_model_name = 'VAS_csf_{}_{}_{}x{}_t{}_w{}_js{}'.format(
         config['dataset'], op_choice, batch_size, n_images, transformed, weighted, int(sys.argv[1]))
 
     print("Config", int(sys.argv[1]) + 1, "creates test", best_model_name)
 else:
-    processed = False
 
-    batch_size = 1
-    op_choice = 'adam'
-    weighted = 0
-    transformed = 0
     n_images = 8
 
     image_directory = 'D:/mosaic_data/raw'
@@ -60,7 +78,7 @@ else:
     csv_name = 'full_procas_info3.csv'
     reference_csv = 'PROCAS_reference.csv'
 
-    keyword = 'testing_prints'
+    keyword = 'local_testing'
     dataset = 'log'
 
     processed_dataset_path = os.path.join(csv_directory, 'mosaics_processed/mosaic_pvas_dataset_{}.pth'.format(dataset))

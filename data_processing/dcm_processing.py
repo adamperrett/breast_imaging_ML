@@ -50,7 +50,7 @@ split_CC_and_MLO = True
 
 process_types = ['log']#, 'histo', 'clahe']
 
-csf = False
+csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     csv_name = 'pvas_data_sheet.csv'
