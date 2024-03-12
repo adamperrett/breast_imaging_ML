@@ -6,7 +6,7 @@ num_epochs = 600
 patience = 150
 lr = 0.003
 momentum = 0.9
-batch_size = 16
+batch_size = 128
 op_choice = 'adam'
 
 weighted = 0
@@ -37,36 +37,21 @@ if on_CSF:
     -transformed 2
     '''
     configurations = []
-    for n_im in [8, 4, 2, 1]:
-        for b_size in [128, 64, 32, 24, 16, 8]:
-            for op_choice in ['adam', 'sgd']:
-                for d_set in ['proc', 'log', 'histo', 'clahe']:
-                    for weight_choice in [0, 1]:
-                        for trans_choice in [0, 1]:
-                            configurations.append({
-                                'dataset': d_set,
-                                'batch_size': b_size,
-                                'optimizer': op_choice,
-                                'weighted': weight_choice,
-                                'transformed': trans_choice,
-                                'n_images': n_im
-                            })
-    config = int(sys.argv[1]) - 1
-
-    processed = True
-    dataset_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast-cancer/'
-    config = configurations[config]
-    processed_dataset_path = os.path.join(dataset_dir,
-                                          'mosaics_processed/full_mosaic_dataset_{}.pth'.format(config['dataset']))
-    batch_size = config['batch_size']
-    op_choice = config['optimizer']
-    weighted = config['weighted']
-    transformed = config['transformed']
-    n_images = config['n_images']
+    for b_size in [512, 256, 128, 64]:
+        for op_choice in ['adam', 'sgd', 'd_adam', 'd_sgd']:
+            for weight_choice in [0, 1]:
+                for trans_choice in [0, 1]:
+                    configurations.append({
+                        'lr': lr,
+                        'batch_size': b_size,
+                        'optimizer': op_choice,
+                        'weighted': weight_choice,
+                        'transformed': trans_choice
+                    })
 
     working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    best_model_name = 'VAS_csf_{}_{}_{}x{}_t{}_w{}_js{}'.format(
-        config['dataset'], op_choice, batch_size, n_images, transformed, weighted, int(sys.argv[1]))
+    best_model_name = 'VAS_csf_{}_{}x{}_t{}_w{}_{}'.format(
+        op_choice, batch_size, lr, transformed, weighted, int(sys.argv[1]))
 
     print("Config", int(sys.argv[1]) + 1, "creates test", best_model_name)
 else:

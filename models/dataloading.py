@@ -35,6 +35,15 @@ sys.path.insert(0, parent_dir)
 from training.training_config import *
 from data_processing.data_analysis import *
 
+gpu = True
+if gpu:
+    torch.set_default_tensor_type(torch.cuda.FloatTensor)
+    device = 'cuda'
+else:
+    torch.set_default_tensor_type(torch.FloatTensor)
+    device = 'cpu'
+
+
 
 class MammogramDataset(Dataset):
     def __init__(self, dataset_path, transform=None, n=0, weights=None, rand_select=True, no_process=False):
@@ -71,11 +80,14 @@ class MammogramDataset(Dataset):
                 transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image]
                 image = transformed_image
 
-        return image, label, directory, views
+        if self.weights is not None:
+            return image, label, self.weights[idx], directory, views
+        else:
+            return image, label, torch.ones_like(self.weights[idx]), directory, views
 
 def custom_collate(batch):
     # Separate images and labels
-    images, labels, weights = zip(*batch)
+    images, labels, weights, dir, view = zip(*batch)
 
     # Determine the max combined width
     max_width = max([sum(img.size(-1) for img in img_list) for img_list in images])
@@ -193,10 +205,16 @@ mean, std = compute_target_statistics(train_dataset)
 # Create DataLoaders
 print("Creating DataLoaders")
 if by_patient:
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
+                              generator=torch.Generator(device=device))
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+                            generator=torch.Generator(device=device))
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+                             generator=torch.Generator(device=device))
 else:
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                              generator=torch.Generator(device=device))
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                            generator=torch.Generator(device=device))
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                             generator=torch.Generator(device=device))

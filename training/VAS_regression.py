@@ -31,6 +31,16 @@ from data_processing.data_analysis import *
 from data_processing.dcm_processing import *
 from data_processing.plotting import *
 
+if on_CSF:
+    config = int(sys.argv[1]) - 1
+
+    config = configurations[config]
+    batch_size = config['batch_size']
+    op_choice = config['optimizer']
+    weighted = config['weighted']
+    transformed = config['transformed']
+    lr = config['lr']
+
 # time.sleep(60*60*14)
 print(time.localtime())
 seed_value = 272727
@@ -45,15 +55,16 @@ if torch.cuda.is_available():
 sns.set(style='dark')
 
 # Initialize model, criterion, optimizer
-# model = SimpleCNN().cuda()  # Assuming you have a GPU. If not, remove .cuda()
-model = ResNetTransformer().cuda()
+# model = SimpleCNN().to(device)
+#edit cuda
+model = ResNetTransformer().to(device)
 epsilon = 0.
-# model = TransformerModel(epsilon=epsilon).cuda()
+# model = TransformerModel(epsilon=epsilon).to(device)
 criterion = nn.MSELoss(reduction='none')  # Mean squared error for regression
 if op_choice == 'd_adam':
-    optimizer = DAdaptAdam(model.parameters())
+    optimizer = DAdaptAdam(model.parameters(), lr=lr)
 elif op_choice == 'd_sgd':
-    optimizer = DAdaptSGD(model.parameters())
+    optimizer = DAdaptSGD(model.parameters(), lr=lr)
 elif op_choice == 'adam':
     optimizer = optim.Adam(model.parameters(), lr=lr)
 else:
@@ -82,8 +93,9 @@ for epoch in tqdm(range(num_epochs)):
     all_predictions = []
     train_loss = 0.0
     scaled_train_loss = 0.0
-    for inputs, targets, weights in train_loader:  # Simplified unpacking
-        inputs, targets, weights = inputs.cuda(), targets.cuda(), weights.cuda()  # Send data to GPU
+    #edit
+    for inputs, targets, weights, dir, view in train_loader:  # Simplified unpacking
+        inputs, targets, weights = inputs.to(device), targets.to(device), weights.to(device)  # Send data to GPU
         if torch.sum(torch.isnan(inputs)) > 0:
             print("Image is corrupted")
 

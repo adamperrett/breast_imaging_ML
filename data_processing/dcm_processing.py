@@ -321,8 +321,8 @@ def preprocess_and_zip_all_images(parent_directory, id_vas_dict):
         ##### get around CSF issues and ####
         #### will be removed once fixed ####
         ####################################
-        if p_i > 5000:
-            break
+        # if p_i > 5000:
+        #     break
 
     return dataset_entries
 
