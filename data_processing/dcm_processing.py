@@ -44,16 +44,21 @@ sns.set(style='dark')
 print("Reading data")
 
 raw = False
-creating_pvas_loader = False  # if true process types makes no difference
+creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False
 split_CC_and_MLO = True
+
+vas_or_vbd = 'vbd'
 
 process_types = ['log']#, 'histo', 'clahe']
 
 csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
-    csv_name = 'pvas_data_sheet.csv'
+    if vas_or_vbd == 'vas':
+        csv_name = 'pvas_data_sheet.csv'
+    else:
+        csv_name = 'PROCAS_Volpara_dirty.csv'
     save_dir = '/mnt/bmh01-rds/assure/processed_data/'
     save_name = 'procas_all'
 else:
@@ -66,6 +71,7 @@ if by_patient:
     save_name += '_patients'
 if creating_pvas_loader:
     save_name += '_pvas'
+save_name += '_'+vas_or_vbd
 
 procas_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 
@@ -84,8 +90,10 @@ else:
     procas_ids = procas_data['ASSURE_PROCESSED_ANON_ID']
     save_name += '_processed'
 
-
-vas_density_data = procas_data['VASCombinedAvDensity']
+if vas_or_vbd == 'vas':
+    vas_density_data = procas_data['VASCombinedAvDensity']
+else:
+    vas_density_data = procas_data['VBD']
 
 # processed_dataset_path = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
 processed_dataset_path = os.path.join(save_dir, save_name, '.pth')
@@ -299,7 +307,7 @@ def preprocess_and_zip_all_images(parent_directory, id_vas_dict):
     patient_dirs.sort()  # Ensuring a deterministic order
 
 
-    snapshot = {'start': psutil.Process().memory_info().rss  / (1024 * 1024)}#tracemalloc.take_snapshot()}
+    snapshot = {'start': psutil.Process().memory_info().rss / (1024 * 1024)}#tracemalloc.take_snapshot()}
     for p_i, patient_dir in enumerate(tqdm(patient_dirs)):
         print("Processing", p_i, "/", len(patient_dirs), "of", save_name)
         before_func = psutil.Process().memory_info().rss / (1024 * 1024)
@@ -316,13 +324,6 @@ def preprocess_and_zip_all_images(parent_directory, id_vas_dict):
         print("from saving =", after_all - after_func, "Mb")
         print("overall =", after_all - snapshot['start'], "Mb")
         print("per image =", (after_all - snapshot['start']) / (p_i + 1), "Mb")
-        ####################################
-        ##### This terminates early to #####
-        ##### get around CSF issues and ####
-        #### will be removed once fixed ####
-        ####################################
-        # if p_i > 5000:
-        #     break
 
     return dataset_entries
 
@@ -336,7 +337,7 @@ if __name__ == "__main__":
     for process_type in dataset_entries:
         # torch.save(dataset_entries[process_type], processed_dataset_path[:-4]+'_'+process_type+'_otsu_1st.pth')
         save_location_and_name = processed_dataset_path[:-5]+'_'+process_type+'.pth'
-        print("Saving to", save_location_and_name)
+        print("Saving to", save_location_and_name, "of length", len(dataset_entries[process_type]))
         torch.save(dataset_entries[process_type], save_location_and_name)
         # torch.save(dataset_entries[process_type], 'C:/Users/adam_/PycharmProjects/pVAS/datasets/priors_pvas_dataset.pth')
 
