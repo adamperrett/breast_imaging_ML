@@ -226,6 +226,7 @@ def process_images(parent_directory, patient_dir, id_vas_dict, snapshot):
     if not all([hasattr(dcm, 'StudyDescription') for dcm in dcm_files]):
         print("StudyDescription attribute missing")
         no_study_type.append([patient_dir])#, dcm_files])
+        return None, snapshot
     else:
         studies = [dcm.StudyDescription for dcm in dcm_files]
         if any(s != 'Breast Screening' and s != 'Breast screening' and s != 'BREAST SCREENING' and
@@ -234,6 +235,7 @@ def process_images(parent_directory, patient_dir, id_vas_dict, snapshot):
             print("Skipped because not all breast screening - studies =", studies)
             bad_study_type.append([patient_dir, studies])#, dcm_files])
             return None, snapshot
+    print("Appropriate study exists. Processing continuing.")
     snapshot['dcm'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()
     all_images = [dcm.pixel_array for dcm in dcm_files]
     all_sides = ['L' if 'LCC' in f or 'LMLO' in f or 'LSIO' in f else 'R' for f in image_files]
@@ -309,7 +311,7 @@ def preprocess_and_zip_all_images(parent_directory, id_vas_dict):
 
     snapshot = {'start': psutil.Process().memory_info().rss / (1024 * 1024)}#tracemalloc.take_snapshot()}
     for p_i, patient_dir in enumerate(tqdm(patient_dirs)):
-        print("Processing", p_i, "/", len(patient_dirs), "of", save_name)
+        print("Processing", p_i, "/", len(patient_dirs), "of", save_name, "for patient", patient_dir)
         before_func = psutil.Process().memory_info().rss / (1024 * 1024)
         processed_images, snapshot = process_images(parent_directory, patient_dir, id_vas_dict, snapshot)
         after_func = psutil.Process().memory_info().rss / (1024 * 1024)
