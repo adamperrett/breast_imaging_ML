@@ -35,7 +35,7 @@ from data_processing.data_analysis import *
 from data_processing.dcm_processing import *
 from data_processing.plotting import *
 
-if on_CSF:
+if on_CSF and not optuna_optimisation:
     config = int(sys.argv[1]) - 1
 
     config = configurations[config]
@@ -62,7 +62,7 @@ def round_to_(x, sig_fig=2):
    return round(x, -int(floor(log10(abs(x))))+sig_fig)
 
 def regression_training(trial):
-    if csf:
+    if csf and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
         op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'd_adam', 'd_sgd', 'sgd'])
         batch_size = trial.suggest_int('batch_size', 2, 30)
