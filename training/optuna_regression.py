@@ -76,6 +76,7 @@ def regression_training(trial):
     best_model_name = '{}_lr{}x{}_{}_p{}r{}_drop{}_{}_t{}_w{}'.format(
         base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed, weighted)
 
+    print("Accessing data from", processed_dataset_path)
     train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted)
 
     # Initialize model, criterion, optimizer

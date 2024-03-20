@@ -75,7 +75,7 @@ else:
     keyword = 'local_testing'
     dataset = 'log'
 
-    processed_dataset_path = os.path.join(csv_directory, 'mosaics_processed/mosaic_pvas_dataset_{}.pth'.format(dataset))
+    # processed_dataset_path = os.path.join(csv_directory, 'mosaics_processed/mosaic_pvas_dataset_{}.pth'.format(dataset))
     # processed_dataset_path = os.path.join(csv_directory, 'mosaics_processed/full_mosaic_dataset_log.pth')
 
     working_dir = 'C:/Users/adam_/PycharmProjects/breast-cancer/training/'
