@@ -95,8 +95,8 @@ if vas_or_vbd == 'vas':
 else:
     vas_density_data = procas_data['VBD']
 
-# processed_dataset_path = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
-processed_dataset_path = os.path.join(save_dir, save_name, '.pth')
+# processed_dataset_save_location = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
+processed_dataset_save_location = os.path.join(save_dir, save_name, '.pth')
 image_statistics_pre = []
 image_statistics_post = []
 no_study_type = []
@@ -331,14 +331,14 @@ def preprocess_and_zip_all_images(parent_directory, id_vas_dict):
 
 if __name__ == "__main__":
     # Generate the dataset and save it
-    # if not os.path.exists(processed_dataset_path):
+    # if not os.path.exists(processed_dataset_save_location):
     if not raw or creating_pvas_loader:
         process_types = ['base']
     # tracemalloc.start()
     dataset_entries = preprocess_and_zip_all_images(image_directory, id_vas_dict)
     for process_type in dataset_entries:
-        # torch.save(dataset_entries[process_type], processed_dataset_path[:-4]+'_'+process_type+'_otsu_1st.pth')
-        save_location_and_name = processed_dataset_path[:-5]+'_'+process_type+'.pth'
+        # torch.save(dataset_entries[process_type], processed_dataset_save_location[:-4]+'_'+process_type+'_otsu_1st.pth')
+        save_location_and_name = processed_dataset_save_location[:-5]+'_'+process_type+'.pth'
         print("Saving to", save_location_and_name, "of length", len(dataset_entries[process_type]))
         torch.save(dataset_entries[process_type], save_location_and_name)
         # torch.save(dataset_entries[process_type], 'C:/Users/adam_/PycharmProjects/pVAS/datasets/priors_pvas_dataset.pth')
