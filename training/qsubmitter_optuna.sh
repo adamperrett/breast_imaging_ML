@@ -10,7 +10,7 @@ TRIALS_COUNTER=0
 while [ $TRIALS_COUNTER -lt $TOTAL_TRIALS ]
 do
   # Count the number of running jobs (adjust the pattern to match your job names)
-  RUNNING_JOBS=$(qstat | grep -c 'submit_CSF')
+  RUNNING_JOBS=$(qstat | grep -c 'submit_opt')
 
   # Check if we can submit more jobs
   if [ $RUNNING_JOBS -lt $MAX_JOBS ]
