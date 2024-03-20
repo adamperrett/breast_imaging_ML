@@ -21,6 +21,14 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
+class GrayscaleToPseudoRGB(nn.Module):
+    def __init__(self):
+        super(GrayscaleToPseudoRGB, self).__init__()
+
+    def forward(self, x):
+        # x is grayscale with shape [N, 1, H, W]
+        return x.repeat(1, 3, 1, 1)  # Output shape [N, 3, H, W]
+
 
 def returnModel(pretrain, replicate):
     """
@@ -32,11 +40,17 @@ def returnModel(pretrain, replicate):
     model.fc = Identity()
     if not replicate:
         model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    else:
+        model.conv1 = nn.Sequential(
+            GrayscaleToPseudoRGB(),
+            model.conv1
+        )
+        # model.conv1[1].in_channels = 1
     return model
 
 
 class Pvas_Model(nn.Module):
-    def __init__(self, pretrain, replicate):
+    def __init__(self, pretrain, replicate, dropout=0.5):
         super(Pvas_Model, self).__init__()
 
         self.replicate = replicate
@@ -48,10 +62,10 @@ class Pvas_Model(nn.Module):
         ## Standard regressor
         self.regressor = nn.Sequential(
             nn.Linear(self.D, self.K),
-            nn.Dropout(p=0.5),
+            nn.Dropout(p=dropout),
             nn.ReLU(),
             nn.Linear(self.K, self.L),
-            nn.Dropout(p=0.5),
+            nn.Dropout(p=dropout),
             nn.ReLU(),
             nn.Linear(self.L, 1)
         )
@@ -114,28 +128,49 @@ class SimpleCNN(nn.Module):
 
 # define complex resnet into transformer model
 class ResNetTransformer(nn.Module):
-    def __init__(self):
+    def __init__(self, pretrain, replicate, dropout=0.5):
         super(ResNetTransformer, self).__init__()
 
         # Using ResNet-34 as a feature extractor
-        self.resnet = resnet34(pretrained=False)  # set pretrained to False
+        self.resnet = resnet34(pretrained=pretrain)  # set pretrained to False
+        d_model = 512
+        nhead = 4  # Number of self-attention heads
+        num_encoder_layers = 2  # Number of Transformer encoder layers
+        self.D = d_model  ## out of the model
+        self.K = 1024  ## intermidiate
+        self.L = 512
 
         # Modify the first layer to accept single-channel (grayscale) images
-        self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        # self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        if not replicate:
+            self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        else:
+            self.resnet.conv1 = nn.Sequential(
+                GrayscaleToPseudoRGB(),
+                self.resnet.conv1
+            )
+            # model.conv1[1].in_channels = 1
 
         self.resnet.fc = nn.Identity()  # Removing the fully connected layer
 
         # Assuming we are using an average pool and get a 512-dimensional vector
-        d_model = 512
-        nhead = 4  # Number of self-attention heads
-        num_encoder_layers = 2  # Number of Transformer encoder layers
 
         # Transformer Encoder layers
         encoder_layers = TransformerEncoderLayer(d_model, nhead)
         self.transformer_encoder = TransformerEncoder(encoder_layers, num_encoder_layers)
 
         # Final regressor
-        self.regressor = nn.Linear(d_model, 1)
+
+        ## Standard regressor
+        self.regressor = nn.Sequential(
+            nn.Linear(self.D, self.K),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+            nn.Linear(self.K, self.L),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+            nn.Linear(self.L, 1)
+        )
 
     def forward(self, x):
         # Extract features using ResNet

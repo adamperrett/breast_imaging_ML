@@ -5,6 +5,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision.models import resnet34
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
+from tqdm import tqdm
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,7 +21,7 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
     all_predictions = []
 
     with torch.no_grad():
-        for inputs, targets, _ in dataloader:
+        for inputs, targets, _, _, _ in tqdm(dataloader):
             inputs, targets = inputs.cuda(), targets.cuda()
             outputs = model(inputs.unsqueeze(1))
             test_outputs_original_scale = inverse_standardize_targets(outputs.squeeze(1), mean, std)

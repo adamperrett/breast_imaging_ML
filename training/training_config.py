@@ -3,7 +3,7 @@ import os
 
 
 num_epochs = 600
-patience = 150
+patience = 5
 lr = 0.003
 momentum = 0.9
 batch_size = 128
@@ -25,6 +25,7 @@ else:
 
 
 on_CSF = True
+optuna_optimisation = True
 
 if on_CSF:
     '''
@@ -36,24 +37,32 @@ if on_CSF:
     -weights 2
     -transformed 2
     '''
-    configurations = []
-    for b_size in [512, 256, 128, 64]:
-        for op_choice in ['adam', 'sgd', 'd_adam', 'd_sgd']:
-            for weight_choice in [0, 1]:
-                for trans_choice in [0, 1]:
-                    configurations.append({
-                        'lr': lr,
-                        'batch_size': b_size,
-                        'optimizer': op_choice,
-                        'weighted': weight_choice,
-                        'transformed': trans_choice
-                    })
-
     working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    best_model_name = 'VAS_csf_{}_{}x{}_t{}_w{}_{}'.format(
-        op_choice, batch_size, lr, transformed, weighted, int(sys.argv[1]))
+    if optuna_optimisation:
+        base_name = 'init_'+CC_or_MLO
+        n_images = 0
+        processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
+        if CC_or_MLO == 'CC':
+            processed_dataset_path += 'procas_all_pvas_vbd_processed_base_CC.pth'
+        else:
+            processed_dataset_path += 'procas_all_pvas_vbd_processed_base_MLO.pth'
+    else:
+        configurations = []
+        for b_size in [512, 256, 128, 64]:
+            for op_choice in ['adam', 'sgd', 'd_adam', 'd_sgd']:
+                for weight_choice in [0, 1]:
+                    for trans_choice in [0, 1]:
+                        configurations.append({
+                            'lr': lr,
+                            'batch_size': b_size,
+                            'optimizer': op_choice,
+                            'weighted': weight_choice,
+                            'transformed': trans_choice
+                        })
+        best_model_name = 'VAS_csf_{}_{}x{}_t{}_w{}_{}'.format(
+            op_choice, batch_size, lr, transformed, weighted, int(sys.argv[1]))
 
-    print("Config", int(sys.argv[1]) + 1, "creates test", best_model_name)
+        print("Config", int(sys.argv[1]) + 1, "creates test", best_model_name)
 else:
 
     n_images = 8

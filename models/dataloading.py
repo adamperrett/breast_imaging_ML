@@ -46,8 +46,8 @@ else:
 
 
 class MammogramDataset(Dataset):
-    def __init__(self, dataset_path, transform=None, n=0, weights=None, rand_select=True, no_process=False):
-        self.dataset = torch.load(dataset_path)
+    def __init__(self, dataset, transform=None, n=0, weights=None, rand_select=True, no_process=False):
+        self.dataset = dataset #torch.load(dataset_path)
         self.transform = transform
         self.n = n
         self.weights = weights
@@ -62,23 +62,9 @@ class MammogramDataset(Dataset):
             return self.dataset[idx]
         image, label, directory, views = self.dataset[idx]
 
-        if self.n:
-            if len(image) < self.n:
-                for i in range(self.n - len(image)):
-                    image = torch.vstack([image, torch.zeros_like(image[0]).unsqueeze(0)])
-            if self.rand_select:
-                sample = random.sample(range(len(image)), self.n)
-            else:
-                sample = range(self.n)
-            if self.transform:
-                transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image[sample]]
-                image = transformed_image
-            else:
-                image = image[sample]
-        else:
-            if self.transform:
-                transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image]
-                image = transformed_image
+        if self.transform:
+            transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image]
+            image = transformed_image
 
         if self.weights is not None:
             return image, label, self.weights[idx], directory, views
@@ -116,105 +102,100 @@ def custom_collate(batch):
 
 print("Reading data")
 
-process_type = 'log'#, 'histo', 'clahe'
+mean = 0
+std = 0
 
-csf = True
-if csf:
-    csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
-    csv_name = 'pvas_data_sheet.csv'
-    save_dir = '/mnt/bmh01-rds/assure/processed_data/'
-    save_name = 'procas_all'
-else:
-    csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
-    csv_name = 'priors_per_image_reader_and_MAI.csv'
-    save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
-    save_name = 'priors'
+def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
+    dataset = torch.load(dataset_path)
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed_value)
+        torch.cuda.manual_seed_all(seed_value)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
-if by_patient:
-    save_name += '_patients'
-if pvas_loader:
-    save_name += '_pvas'
+    # Group entries by the unique key
+    groups = {}
+    for entry in dataset:
+        key = entry[2]  # The third entry
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(entry)
 
-procas_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
+    # Shuffle the list of keys for randomness
+    keys = list(groups.keys())
+    random.shuffle(keys)
 
-if raw:
-    if csf:
-        image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_RAW'
+    # Calculate the split sizes based on the number of unique keys
+    train_end = int(len(keys) * train_ratio)
+    val_end = train_end + int(len(keys) * val_ratio)
+
+    # Split the keys into train, validation, and test
+    train_keys = keys[:train_end]
+    val_keys = keys[train_end:val_end]
+    test_keys = keys[val_end:]
+
+    # Select data from the original dataset based on the split keys
+    train_data = [item for k in train_keys for item in groups[k]]
+    val_data = [item for k in val_keys for item in groups[k]]
+    test_data = [item for k in test_keys for item in groups[k]]
+
+    return train_data, val_data, test_data
+
+def return_dataloaders(processed_dataset_path, transformed, weighted, seed_value=0):
+    global mean, std
+
+    # Splitting the dataset
+    train_ratio, val_ratio, test_ratio = 0.7, 0.2, 0.1
+    train_data, val_data, test_data = split_by_patient(processed_dataset_path, train_ratio, val_ratio, seed_value)
+
+    if transformed:
+        # Define your augmentations
+        data_transforms = transforms.Compose([
+            transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
+            # Assuming images are PIL images; if not, you'll need to adjust or implement suitable transformations
+        ])
     else:
-        image_directory = 'D:/priors_data/raw'
-    procas_ids = procas_data['ASSURE_RAW_ID']
-    save_name += '_raw'
-else:
-    if csf:
-        image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED'
+        data_transforms = None
+
+    # Compute weights for the training set
+    if weighted:
+        targets = [label for _, label, _, _ in train_data]
+        sample_weights = compute_sample_weights(targets)
     else:
-        image_directory = 'D:/priors_data/processed'
-    procas_ids = procas_data['ASSURE_PROCESSED_ANON_ID']
-    save_name += '_processed'
+        sample_weights = None
 
-if not raw or pvas_loader:
-    process_types = 'base'
-save_name += '_'+process_type
+    # Load dataset from saved path
+    print("Creating Dataset")
+    train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
+    val_dataset = MammogramDataset(val_data)
+    test_dataset = MammogramDataset(test_data)
 
+    mean, std = compute_target_statistics(train_dataset)
 
-# Load dataset from saved path
-print("Creating Dataset")
-dataset = MammogramDataset(processed_dataset_path,
-                           n=n_images)
+    # from torch.utils.data import WeightedRandomSampler
+    # sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(train_dataset))
 
-# Splitting the dataset
-train_ratio, val_ratio = 0.7, 0.2
-num_train = int(train_ratio * len(dataset))
-num_val = int(val_ratio * len(dataset))
-num_test = len(dataset) - num_train - num_val
+    # Use this sampler in your DataLoader
+    # train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, collate_fn=custom_collate)
 
-train_dataset, val_dataset, test_dataset = random_split(dataset, [num_train, num_val, num_test])
+    # Create DataLoaders
+    print("Creating DataLoaders")
+    if by_patient:
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
+                                  generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+                                 generator=torch.Generator(device=device))
+    else:
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                                  generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                                 generator=torch.Generator(device=device))
 
-if transformed:
-    # Define your augmentations
-    data_transforms = transforms.Compose([
-        transforms.RandomAffine(degrees=15, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=10),
-        # Assuming images are PIL images; if not, you'll need to adjust or implement suitable transformations
-        transforms.RandomCrop(size=(10 * 64, 8 * 64), padding=4),
-        # Add any other desired transforms here
-    ])
-else:
-    data_transforms = None
-
-# Compute weights for the training set
-if weighted:
-    targets = [label for _, label in train_dataset.dataset.dataset]
-    sample_weights = compute_sample_weights(targets)
-else:
-    sample_weights = None
-
-# Applying the transform only to the training dataset
-train_dataset.dataset = MammogramDataset(processed_dataset_path,
-                                         transform=data_transforms,
-                                         weights=sample_weights,
-                                         n=parallel_images)
-
-mean, std = compute_target_statistics(train_dataset)
-
-# from torch.utils.data import WeightedRandomSampler
-# sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(train_dataset))
-
-# Use this sampler in your DataLoader
-# train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, collate_fn=custom_collate)
-
-# Create DataLoaders
-print("Creating DataLoaders")
-if by_patient:
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
-                              generator=torch.Generator(device=device))
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
-                            generator=torch.Generator(device=device))
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
-                             generator=torch.Generator(device=device))
-else:
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                              generator=torch.Generator(device=device))
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
-                            generator=torch.Generator(device=device))
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
-                             generator=torch.Generator(device=device))
+    return train_loader, val_loader, test_loader
