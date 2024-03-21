@@ -65,7 +65,7 @@ def regression_training(trial):
     if on_CSF and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
         op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'd_adam', 'd_sgd', 'sgd'])
-        batch_size = trial.suggest_int('batch_size', 2, 16)
+        batch_size = trial.suggest_int('batch_size', 2, 6)
         dropout = trial.suggest_float('dropout', 0, 0.7)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
@@ -138,7 +138,9 @@ def regression_training(trial):
             # Forward
             print("Before output\nCurrent GPU mem usage is", torch.cuda.memory_allocated())
             outputs = model(inputs.unsqueeze(1)).to(device)  # Add channel dimension
+            print("Before losses\nCurrent GPU mem usage is", torch.cuda.memory_allocated())
             losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
+            print("Before weighting\nCurrent GPU mem usage is", torch.cuda.memory_allocated())
             weighted_loss = (losses * weights).mean()  # Weighted loss
 
             # Backward + optimize
