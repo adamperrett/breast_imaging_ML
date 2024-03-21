@@ -65,7 +65,7 @@ def regression_training(trial):
     if on_CSF and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
         op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'd_adam', 'd_sgd', 'sgd'])
-        batch_size = trial.suggest_int('batch_size', 2, 30)
+        batch_size = trial.suggest_int('batch_size', 2, 16)
         dropout = trial.suggest_float('dropout', 0, 0.7)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
@@ -76,16 +76,16 @@ def regression_training(trial):
     best_model_name = '{}_lr{}x{}_{}_p{}r{}_drop{}_{}_t{}_w{}'.format(
         base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed, weighted)
 
-    print("Accessing data from", processed_dataset_path)
+    print("Accessing data from", processed_dataset_path, "for config", best_model_name)
     train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted)
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
     #edit cuda
     if arch == 'pvas':
-        model = Pvas_Model(pre_trained, replicate, dropout).to(device)
+        model = Pvas_Model(pre_trained, replicate, dropout).to('cuda')
     else:
-        model = ResNetTransformer(pre_trained, replicate, dropout).to(device)
+        model = ResNetTransformer(pre_trained, replicate, dropout).to('cuda')
     epsilon = 0.
     # model = TransformerModel(epsilon=epsilon).to(device)
     criterion = nn.MSELoss(reduction='none')  # Mean squared error for regression
@@ -125,7 +125,7 @@ def regression_training(trial):
         scaled_train_loss = 0.0
         #edit
         for inputs, targets, weights, dir, view in train_loader:  # Simplified unpacking
-            inputs, targets, weights = inputs.to(device), targets.to(device), weights.to(device)  # Send data to GPU
+            inputs, targets, weights = inputs.to('cuda'), targets.to('cuda'), weights.to('cuda')  # Send data to GPU
             if torch.sum(torch.isnan(inputs)) > 0:
                 print("Image is corrupted")
 

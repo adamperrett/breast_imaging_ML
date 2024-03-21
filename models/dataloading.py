@@ -35,7 +35,7 @@ sys.path.insert(0, parent_dir)
 from training.training_config import *
 from data_processing.data_analysis import *
 
-gpu = True
+gpu = False
 if gpu:
     torch.set_default_tensor_type(torch.cuda.FloatTensor)
     device = 'cuda'
