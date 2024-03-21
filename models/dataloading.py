@@ -116,9 +116,9 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    # Group entries by the unique key
+    print("Grouping entries by the unique key")
     groups = {}
-    for entry in dataset:
+    for entry in tqdm(dataset):
         key = entry[2]  # The third entry
         if key not in groups:
             groups[key] = []
@@ -147,9 +147,38 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 def return_dataloaders(processed_dataset_path, transformed, weighted, seed_value=0):
     global mean, std
 
-    # Splitting the dataset
-    train_ratio, val_ratio, test_ratio = 0.7, 0.2, 0.1
-    train_data, val_data, test_data = split_by_patient(processed_dataset_path, train_ratio, val_ratio, seed_value)
+    if os.path.exists(data_name+'_training_data.pth'):
+        train_data = torch.load(data_name+'_training_data.pth')
+        val_data = torch.load(data_name+'_val_data.pth')
+        test_data = torch.load(data_name+'_test_data.pth')
+        mean, std = torch.load(data_name+'_mean_and_std.pth')
+        if weighted:
+            computed_weights = torch.load(data_name+'_weights.pth')
+        else:
+            computed_weights = None
+    else:
+        print("Processing data for the first time")
+        # Splitting the dataset
+        train_ratio, val_ratio, test_ratio = 0.7, 0.2, 0.1
+        train_data, val_data, test_data = split_by_patient(processed_dataset_path, train_ratio, val_ratio, seed_value)
+
+        # Compute weights for the training set
+        targets = [label for _, label, _, _ in train_data]
+        computed_weights = compute_sample_weights(targets)
+
+        mean, std = compute_target_statistics(train_data)
+
+        print("Saving data")
+        torch.save(train_data, data_name + '_training_data.pth')
+        torch.save(val_data, data_name + '_val_data.pth')
+        torch.save(test_data, data_name + '_test_data.pth')
+        torch.save([mean, std], data_name + '_mean_and_std.pth')
+        torch.save(computed_weights, data_name + '_weights.pth')
+
+    if weighted:
+        sample_weights = computed_weights
+    else:
+        sample_weights = None
 
     if transformed:
         # Define your augmentations
@@ -160,29 +189,14 @@ def return_dataloaders(processed_dataset_path, transformed, weighted, seed_value
     else:
         data_transforms = None
 
-    # Compute weights for the training set
-    if weighted:
-        targets = [label for _, label, _, _ in train_data]
-        sample_weights = compute_sample_weights(targets)
-    else:
-        sample_weights = None
-
     # Load dataset from saved path
     print("Creating Dataset")
     train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
     val_dataset = MammogramDataset(val_data)
     test_dataset = MammogramDataset(test_data)
 
-    mean, std = compute_target_statistics(train_dataset)
-
-    # from torch.utils.data import WeightedRandomSampler
-    # sampler = WeightedRandomSampler(weights=sample_weights, num_samples=len(train_dataset))
-
-    # Use this sampler in your DataLoader
-    # train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler, collate_fn=custom_collate)
-
     # Create DataLoaders
-    print("Creating DataLoaders")
+    print("Creating DataLoaders for", device)
     if by_patient:
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
                                   generator=torch.Generator(device=device))

@@ -44,9 +44,12 @@ if on_CSF:
         n_images = 0
         processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
         if CC_or_MLO == 'CC':
-            processed_dataset_path += 'procas_all_pvas_vbd_processed_base_CC.pth'
+            data_name = 'procas_all_pvas_vbd_processed_base_CC'
         else:
-            processed_dataset_path += 'procas_all_pvas_vbd_processed_base_MLO.pth'
+            data_name = 'procas_all_pvas_vbd_processed_base_MLO'
+        processed_dataset_path += data_name+'.pth'
+
+        # data_name = 'priors_pvas_processed_base_CC'
         # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/priors_pvas_processed_base_CC.pth'
     else:
         configurations = []

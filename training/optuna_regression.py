@@ -77,11 +77,13 @@ def regression_training(trial):
         base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed, weighted)
 
     print("Accessing data from", processed_dataset_path, "for config", best_model_name)
+    print("Current GPU mem usage is", torch.cuda.memory_allocated())
     train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted)
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
     #edit cuda
+    print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated())
     if arch == 'pvas':
         model = Pvas_Model(pre_trained, replicate, dropout).to('cuda')
     else:
@@ -117,15 +119,16 @@ def regression_training(trial):
     writer = SummaryWriter(working_dir + '/results/' + best_model_name)
 
     print("Beginning training")
+    print("Current GPU mem usage is", torch.cuda.memory_allocated())
     for epoch in tqdm(range(num_epochs)):
         model.train()
         all_targets = []
         all_predictions = []
         train_loss = 0.0
         scaled_train_loss = 0.0
-        #edit
-        for inputs, targets, weights, dir, view in train_loader:  # Simplified unpacking
-            inputs, targets, weights = inputs.to('cuda'), targets.to('cuda'), weights.to('cuda')  # Send data to GPU
+        for inputs, targets, weights, dir, view in tqdm(train_loader):  # Simplified unpacking
+            inputs, targets, weights = inputs.to('cuda'), targets.to(device), weights.to(device)  # Send data to GPU
+            print("Loaded images\nCurrent GPU mem usage is", torch.cuda.memory_allocated())
             if torch.sum(torch.isnan(inputs)) > 0:
                 print("Image is corrupted")
 
@@ -133,16 +136,19 @@ def regression_training(trial):
             optimizer.zero_grad()
 
             # Forward
-            outputs = model(inputs.unsqueeze(1))  # Add channel dimension
+            print("Before output\nCurrent GPU mem usage is", torch.cuda.memory_allocated())
+            outputs = model(inputs.unsqueeze(1)).to(device)  # Add channel dimension
             losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
             weighted_loss = (losses * weights).mean()  # Weighted loss
 
             # Backward + optimize
+            print("Before backward\nCurrent GPU mem usage is", torch.cuda.memory_allocated())
             weighted_loss.backward()
             optimizer.step()
 
             train_loss += weighted_loss.item() * inputs.size(0)
 
+            print("Before scaling loss\nCurrent GPU mem usage is", torch.cuda.memory_allocated())
             with torch.no_grad():
                 train_outputs_original_scale = inverse_standardize_targets(outputs.squeeze(1), mean, std)
                 train_targets_original_scale = inverse_standardize_targets(targets.float(), mean, std)

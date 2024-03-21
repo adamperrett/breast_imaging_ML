@@ -22,8 +22,8 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
 
     with torch.no_grad():
         for inputs, targets, _, _, _ in tqdm(dataloader):
-            inputs, targets = inputs.cuda(), targets.cuda()
-            outputs = model(inputs.unsqueeze(1))
+            inputs, targets = inputs.cuda(), targets
+            outputs = model(inputs.unsqueeze(1)).to('cpu')
             test_outputs_original_scale = inverse_standardize_targets(outputs.squeeze(1), mean, std)
             test_targets_original_scale = inverse_standardize_targets(targets.float(), mean, std)
             loss = criterion(test_outputs_original_scale, test_targets_original_scale).mean()
@@ -37,7 +37,7 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
     return epoch_loss, all_targets, all_predictions, r2
 
 def compute_target_statistics(dataset):
-    labels = [label for _, label, _, _, _ in dataset]
+    labels = [label for _, label, _, _ in dataset]
     mean = np.mean(labels)
     std = np.std(labels)
     return mean, std
