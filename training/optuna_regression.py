@@ -32,7 +32,7 @@ from training.training_config import *
 from models.architectures import *
 from models.dataloading import *
 from data_processing.data_analysis import *
-from data_processing.dcm_processing import *
+# from data_processing.dcm_processing import *
 from data_processing.plotting import *
 
 if on_CSF and not optuna_optimisation:
@@ -62,7 +62,7 @@ def round_to_(x, sig_fig=2):
    return round(x, -int(floor(log10(abs(x))))+sig_fig)
 
 def regression_training(trial):
-    if csf and optuna_optimisation:
+    if on_CSF and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
         op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'd_adam', 'd_sgd', 'sgd'])
         batch_size = trial.suggest_int('batch_size', 2, 30)
@@ -90,9 +90,9 @@ def regression_training(trial):
     # model = TransformerModel(epsilon=epsilon).to(device)
     criterion = nn.MSELoss(reduction='none')  # Mean squared error for regression
     if op_choice == 'd_adam':
-        optimizer = DAdaptAdam(model.parameters(), lr=lr)
+        optimizer = DAdaptAdam(model.parameters())
     elif op_choice == 'd_sgd':
-        optimizer = DAdaptSGD(model.parameters(), lr=lr)
+        optimizer = DAdaptSGD(model.parameters())
     elif op_choice == 'adam':
         optimizer = optim.Adam(model.parameters(), lr=lr)
     elif op_choice == 'rms':
@@ -173,7 +173,7 @@ def regression_training(trial):
         writer.add_scalar('Loss/Test', test_loss, epoch)
         writer.add_scalar('R2/Test', test_r2, epoch)
 
-        if csf and optuna_optimisation:
+        if on_CSF and optuna_optimisation:
             for attempt in range(40):
                 try:
                     trial.report(val_loss, epoch)
@@ -191,7 +191,7 @@ def regression_training(trial):
             best_test_r_loss = test_loss
             not_improved_r2 = 0
             print("Validation R2 improved. Saving best_model.")
-            torch.save(model.state_dict(), working_dir + '/models/r_' + best_model_name)
+            torch.save(model.state_dict(), working_dir + '/../models/r_' + best_model_name)
         else:
             not_improved_r2 += 1
         # Check early stopping
@@ -206,7 +206,7 @@ def regression_training(trial):
                   f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f} val r2: {best_val_l_r2:.4f} test r2 {best_test_l_r2:.4f}")
             print(f"From best val R2 at epoch {epoch - not_improved_r2}:\n "
                   f"val loss: {best_val_r_loss:.4f} test loss {best_test_r_loss:.4f} val r2: {best_val_r2:.4f} test r2 {best_test_r2:.4f}")
-            torch.save(model.state_dict(), working_dir + '/models/l_' + best_model_name)
+            torch.save(model.state_dict(), working_dir + '/../models/l_' + best_model_name)
         else:
             not_improved += 1
             print(f"From best val loss at epoch {epoch - not_improved}:\n "
@@ -230,7 +230,7 @@ def regression_training(trial):
 
     writer.close()
     print("Loading best model weights!")
-    model.load_state_dict(torch.load(working_dir + '/models/l_' + best_model_name))
+    model.load_state_dict(torch.load(working_dir + '/../models/l_' + best_model_name))
 
     train_loader.transform = None
 
@@ -280,7 +280,7 @@ def regression_training(trial):
 
 
 if __name__ == "__main__":
-    if csf:
+    if on_CSF:
         study_name = '{}_BML_optuna'.format(base_name)  # Unique identifier
         storage_url = 'sqlite:///{}.db'.format(study_name)
         study = optuna.create_study(study_name=study_name, storage=storage_url, load_if_exists=True,

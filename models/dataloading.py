@@ -63,13 +63,13 @@ class MammogramDataset(Dataset):
         image, label, directory, views = self.dataset[idx]
 
         if self.transform:
-            transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image]
+            transformed_image = self.transform(image.unsqueeze(0)).squeeze(0)
             image = transformed_image
 
         if self.weights is not None:
             return image, label, self.weights[idx], directory, views
         else:
-            return image, label, torch.ones_like(self.weights[idx]), directory, views
+            return image, label, (label*0)+1, directory, views
 
 def custom_collate(batch):
     # Separate images and labels

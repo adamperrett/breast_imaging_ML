@@ -12,7 +12,7 @@ op_choice = 'adam'
 weighted = 0
 transformed = 0
 
-raw = True
+raw = False
 pvas_loader = False
 split_CC_and_MLO = True
 CC_or_MLO = 'CC'
@@ -38,6 +38,7 @@ if on_CSF:
     -transformed 2
     '''
     working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     if optuna_optimisation:
         base_name = 'init_'+CC_or_MLO
         n_images = 0
@@ -46,6 +47,7 @@ if on_CSF:
             processed_dataset_path += 'procas_all_pvas_vbd_processed_base_CC.pth'
         else:
             processed_dataset_path += 'procas_all_pvas_vbd_processed_base_MLO.pth'
+        # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/priors_pvas_processed_base_CC.pth'
     else:
         configurations = []
         for b_size in [512, 256, 128, 64]:
@@ -78,6 +80,6 @@ else:
     # processed_dataset_path = os.path.join(csv_directory, 'mosaics_processed/mosaic_pvas_dataset_{}.pth'.format(dataset))
     # processed_dataset_path = os.path.join(csv_directory, 'mosaics_processed/full_mosaic_dataset_log.pth')
 
-    working_dir = 'C:/Users/adam_/PycharmProjects/breast-cancer/training/'
+    working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     best_model_name = '{}_{}_{}_{}x{}_t{}_w{}'.format(
         keyword, dataset, op_choice, batch_size, n_images, transformed, weighted)
