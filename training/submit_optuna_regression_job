@@ -1,6 +1,6 @@
 #!/bin/bash --login
 #$ -cwd
-#$ -l nvidia_v100=1
+#$ -l nvidia_v100=4
 
 module load apps/binapps/anaconda3/4.2.0
 module load tools/env/proxy

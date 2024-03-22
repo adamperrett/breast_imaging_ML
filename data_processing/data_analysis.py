@@ -22,6 +22,10 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
 
     with torch.no_grad():
         for inputs, targets, _, _, _ in tqdm(dataloader):
+            nan_mask = torch.isnan(inputs)
+            if torch.sum(nan_mask) > 0:
+                print("Image is corrupted during evaluation", torch.sum(torch.isnan(inputs), dim=1))
+            inputs[nan_mask] = 0
             inputs, targets = inputs.cuda(), targets
             outputs = model(inputs.unsqueeze(1)).to('cpu')
             test_outputs_original_scale = inverse_standardize_targets(outputs.squeeze(1), mean, std)
@@ -33,6 +37,10 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
             all_predictions.extend(test_outputs_original_scale.cpu().numpy())
 
     epoch_loss = running_loss / len(dataloader.dataset)
+    if torch.sum(torch.isnan(torch.tensor(all_targets))) > 0:
+        print("Corrupted targets")
+    if torch.sum(torch.isnan(torch.tensor(all_predictions))) > 0:
+        print("Corrupted predictions")
     r2 = r2_score(all_targets, all_predictions)
     return epoch_loss, all_targets, all_predictions, r2
 

@@ -65,7 +65,7 @@ def regression_training(trial):
     if on_CSF and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
         op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'd_adam', 'd_sgd', 'sgd'])
-        batch_size = 1#trial.suggest_int('batch_size', 2, 16)
+        batch_size = trial.suggest_int('batch_size', 2, 32)
         dropout = trial.suggest_float('dropout', 0, 0.7)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
@@ -76,7 +76,7 @@ def regression_training(trial):
     best_model_name = '{}_lr{}x{}_{}_p{}r{}_drop{}_{}_t{}_w{}'.format(
         base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed, weighted)
 
-    print("Accessing data from", processed_dataset_path, "for config", best_model_name)
+    print("Accessing data from", processed_dataset_path, "\nConfig", best_model_name)
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
     train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted, batch_size)
 
@@ -130,7 +130,9 @@ def regression_training(trial):
             inputs, targets, weights = inputs.to('cuda'), targets.to(device), weights.to(device)  # Send data to GPU
             print("Loaded images\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             if torch.sum(torch.isnan(inputs)) > 0:
-                print("Image is corrupted")
+                print("Image is corrupted", torch.sum(torch.isnan(inputs), dim=1))
+                nan_mask = torch.isnan(inputs)
+                inputs[nan_mask] = 0
 
             # Zero the parameter gradients
             optimizer.zero_grad()
@@ -295,6 +297,7 @@ if __name__ == "__main__":
                                     # sampler=optuna.samplers.TPESampler,
                                     # sampler=optuna.samplers.NSGAIIISampler(population_size=30), # can do multiple objectives
                                     direction='minimize', pruner=optuna.pruners.MedianPruner())
+        print("Beginning optimisation")
         study.optimize(regression_training, n_trials=1)  # Each script execution does 1 trial
 
         from optuna.visualization import (
