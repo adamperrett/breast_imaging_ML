@@ -144,10 +144,11 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 
     return train_data, val_data, test_data
 
-def return_dataloaders(processed_dataset_path, transformed, weighted, seed_value=0):
+def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size, seed_value=0):
     global mean, std
 
     if os.path.exists(data_name+'_training_data.pth'):
+        print("Loading data")
         train_data = torch.load(data_name+'_training_data.pth')
         val_data = torch.load(data_name+'_val_data.pth')
         test_data = torch.load(data_name+'_test_data.pth')

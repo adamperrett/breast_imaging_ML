@@ -6,7 +6,7 @@ num_epochs = 600
 patience = 5
 lr = 0.003
 momentum = 0.9
-batch_size = 128
+# batch_size = 128
 op_choice = 'adam'
 
 weighted = 0

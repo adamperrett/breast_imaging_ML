@@ -65,7 +65,7 @@ def regression_training(trial):
     if on_CSF and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
         op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'd_adam', 'd_sgd', 'sgd'])
-        batch_size = trial.suggest_int('batch_size', 2, 6)
+        batch_size = 1#trial.suggest_int('batch_size', 2, 16)
         dropout = trial.suggest_float('dropout', 0, 0.7)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
@@ -78,7 +78,7 @@ def regression_training(trial):
 
     print("Accessing data from", processed_dataset_path, "for config", best_model_name)
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted)
+    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted, batch_size)
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
