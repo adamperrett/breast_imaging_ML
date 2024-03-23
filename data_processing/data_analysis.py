@@ -28,8 +28,8 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
             inputs[nan_mask] = 0
             inputs, targets = inputs.cuda(), targets
             outputs = model(inputs.unsqueeze(1)).to('cpu')
-            test_outputs_original_scale = inverse_standardize_targets(outputs.squeeze(1), mean, std)
-            test_targets_original_scale = inverse_standardize_targets(targets.float(), mean, std)
+            test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
+            test_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
             loss = criterion(test_outputs_original_scale, test_targets_original_scale).mean()
             running_loss += loss.item() * inputs.size(0)
 

@@ -128,6 +128,8 @@ def regression_training(trial):
         scaled_train_loss = 0.0
         for inputs, targets, weights, dir, view in tqdm(train_loader):  # Simplified unpacking
             inputs, targets, weights = inputs.to('cuda'), targets.to(device), weights.to(device)  # Send data to GPU
+            print("inputs, targets, weights, dir, view")
+            print(inputs, "\n", targets, "\n", weights, "\n", dir, "\n", view)
             print("Loaded images\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             if torch.sum(torch.isnan(inputs)) > 0:
                 print("Image is corrupted", torch.sum(torch.isnan(inputs), dim=1))
@@ -154,8 +156,8 @@ def regression_training(trial):
 
             print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             with torch.no_grad():
-                train_outputs_original_scale = inverse_standardize_targets(outputs.squeeze(1), mean, std)
-                train_targets_original_scale = inverse_standardize_targets(targets.float(), mean, std)
+                train_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
+                train_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
                 all_targets.extend(train_targets_original_scale.cpu().numpy())
                 all_predictions.extend(train_outputs_original_scale.cpu().numpy())
                 scaled_train_loss += criterion(train_outputs_original_scale,
