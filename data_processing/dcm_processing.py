@@ -46,7 +46,9 @@ print("Reading data")
 raw = False
 creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False
-split_CC_and_MLO = True
+split_CC_and_MLO = False
+average_score = False
+filter_uncommon_views = False
 
 vas_or_vbd = 'vbd'
 
@@ -59,13 +61,18 @@ if csf:
         csv_name = 'pvas_data_sheet.csv'
     else:
         csv_name = 'PROCAS_Volpara_dirty.csv'
-    save_dir = '/mnt/bmh01-rds/assure/processed_data/'
+    # save_dir = '/mnt/bmh01-rds/assure/processed_data/'
+    save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
     save_name = 'procas_all'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
-    csv_name = 'priors_per_image_reader_and_MAI.csv'
+    # csv_name = 'priors_per_image_reader_and_MAI.csv'
+    if vas_or_vbd == 'vas':
+        csv_name = 'priors_per_image_reader_and_MAI.csv'
+    else:
+        csv_name = 'PROCAS_Volpara_dirty.csv'
     save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
-    save_name = 'priors'
+    save_name = 'local'
 
 if by_patient:
     save_name += '_patients'
@@ -90,10 +97,41 @@ else:
     procas_ids = procas_data['ASSURE_PROCESSED_ANON_ID']
     save_name += '_processed'
 
+regression_target_data = {}
 if vas_or_vbd == 'vas':
-    vas_density_data = procas_data['VASCombinedAvDensity']
+    regression_target_data['L_MLO'] = procas_data['VASCombinedAvDensity']
+    regression_target_data['L_CC'] = procas_data['VASCombinedAvDensity']
+    regression_target_data['R_MLO'] = procas_data['VASCombinedAvDensity']
+    regression_target_data['R_CC'] = procas_data['VASCombinedAvDensity']
 else:
-    vas_density_data = procas_data['VBD']
+    if average_score:
+        regression_target_data['L_MLO'] = procas_data['VBD']
+        regression_target_data['L_CC'] = procas_data['VBD']
+        regression_target_data['R_MLO'] = procas_data['VBD']
+        regression_target_data['R_CC'] = procas_data['VBD']
+    else:
+        regression_target_data['L_MLO'] = procas_data['vbd_L_MLO']
+        regression_target_data['L_CC'] = procas_data['vbd_L_CC']
+        regression_target_data['R_MLO'] = procas_data['vbd_R_MLO']
+        regression_target_data['R_CC'] = procas_data['vbd_R_CC']
+
+# save mosaic_ids which have a vas score and Study_type was Breast Screening
+id_target_dict = {}
+for image_type in regression_target_data:
+    id_target_dict[image_type] = {}
+    for id, target in zip(procas_ids, regression_target_data[image_type]):
+        if not np.isnan(target) and target >= 0 and not np.isnan(id):
+            id_target_dict[image_type]["{:05}".format(int(id))] = target
+
+if filter_uncommon_views:
+    # Find common IDs across all image types
+    common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
+    for image_type, ids in id_target_dict.items():
+        common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
+
+    # Filter the dictionaries to retain only common IDs
+    for image_type in id_target_dict:
+        id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
 
 # processed_dataset_save_location = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
 processed_dataset_save_location = os.path.join(save_dir, save_name, '.pth')
@@ -101,12 +139,6 @@ image_statistics_pre = []
 image_statistics_post = []
 no_study_type = []
 bad_study_type = []
-
-# save mosaic_ids which have a vas score and Study_type was Breast Screening
-id_vas_dict = {}
-for id, vas in zip(procas_ids, vas_density_data):
-    if not np.isnan(vas) and vas >= 0 and not np.isnan(id):
-        id_vas_dict["{:05}".format(int(id))] = vas
 
 def pvas_preprocess_image(image, side, image_type, view):
     """
@@ -208,7 +240,7 @@ def pre_process_mammograms_n_ways(mammographic_images, sides, heights, widths, i
         processed_images.append(mammographic_image)
     return torch.stack([torch.from_numpy(img).float() for img in processed_images], dim=0)
 
-def process_images(parent_directory, patient_dir, id_vas_dict, snapshot):
+def process_images(parent_directory, patient_dir, snapshot):
     if split_CC_and_MLO:
         dataset_entries = {}
         for p_t in process_types:
@@ -217,7 +249,8 @@ def process_images(parent_directory, patient_dir, id_vas_dict, snapshot):
     else:
         dataset_entries = {p_t: [] for p_t in process_types}
 
-    patient_path = os.path.join(parent_directory, patient_dir)
+    # patient_path = os.path.join(parent_directory, patient_dir)
+    patient_path = patient_dir
     image_files = [f for f in os.listdir(patient_path) if f.endswith('.dcm')]
 
     # Load all images for the given patient/directory
@@ -238,6 +271,10 @@ def process_images(parent_directory, patient_dir, id_vas_dict, snapshot):
     print("Appropriate study exists. Processing continuing.")
     snapshot['dcm'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()
     all_images = [dcm.pixel_array for dcm in dcm_files]
+    for im in all_images:
+        if np.sum(np.isnan(im)) > 0:
+            print("\nImage was corrupted by", np.sum(np.isnan(im)), "pixel(s)\n")
+            return None, snapshot
     all_sides = ['L' if 'LCC' in f or 'LMLO' in f or 'LSIO' in f else 'R' for f in image_files]
     all_views = ['CC' if 'CC' in f else 'MLO' for f in image_files]
     all_heights = [img.shape[0] for img in all_images]
@@ -261,19 +298,20 @@ def process_images(parent_directory, patient_dir, id_vas_dict, snapshot):
                                    im, side, type, view in
                                    zip(copied_images, all_sides, all_image_types, all_views)]).to(torch.float32)
         if not by_patient:
-            for p_i, i_f, v in zip(preprocessed_images, image_files, all_views):
+            for p_i, i_f, v, s in zip(preprocessed_images, image_files, all_views, all_sides):
+                target_value = id_target_dict[s+'_'+v][patient_dir[-5:]]
                 if split_CC_and_MLO:
                     if v == 'CC':
-                        dataset_entries[process_type+'_CC'].append((p_i, id_vas_dict[patient_dir[-5:]],
+                        dataset_entries[process_type+'_CC'].append((p_i, target_value,
                                                               patient_dir, i_f))
                     else:
-                        dataset_entries[process_type+'_MLO'].append((p_i, id_vas_dict[patient_dir[-5:]],
+                        dataset_entries[process_type+'_MLO'].append((p_i, target_value,
                                                               patient_dir, i_f))
                 else:
-                    dataset_entries[process_type].append((p_i, id_vas_dict[patient_dir[-5:]],
+                    dataset_entries[process_type].append((p_i, target_value,
                                                           patient_dir, i_f, v))
         else:
-            dataset_entries[process_type].append((preprocessed_images, id_vas_dict[patient_dir[-5:]],
+            dataset_entries[process_type].append((preprocessed_images, id_target_dict['L_MLO'][patient_dir[-5:]],
                                                   patient_dir, image_files))
         snapshot['del'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()
         del copied_images
@@ -296,7 +334,7 @@ def process_images(parent_directory, patient_dir, id_vas_dict, snapshot):
     return dataset_entries, snapshot
 
 # This function will preprocess and zip all images and return a dataset ready for saving
-def preprocess_and_zip_all_images(parent_directory, id_vas_dict):
+def preprocess_and_zip_all_images(parent_directory):
     if split_CC_and_MLO:
         dataset_entries = {}
         for p_t in process_types:
@@ -305,7 +343,15 @@ def preprocess_and_zip_all_images(parent_directory, id_vas_dict):
     else:
         dataset_entries = {p_t: [] for p_t in process_types}
 
-    patient_dirs = [d for d in os.listdir(parent_directory) if d[-5:] in id_vas_dict]
+
+    all_dirs = []
+    print("Collecting directories")
+    for root, dirs, _ in tqdm(os.walk(parent_directory)):
+        for d in dirs:
+            dir_path = os.path.join(root, d)
+            all_dirs.append(dir_path)
+
+    patient_dirs = [d for d in all_dirs if d[-5:] in id_target_dict['L_MLO']]
     patient_dirs.sort()  # Ensuring a deterministic order
 
 
@@ -313,7 +359,7 @@ def preprocess_and_zip_all_images(parent_directory, id_vas_dict):
     for p_i, patient_dir in enumerate(tqdm(patient_dirs)):
         print("Processing", p_i, "/", len(patient_dirs), "of", save_name, "for patient", patient_dir)
         before_func = psutil.Process().memory_info().rss / (1024 * 1024)
-        processed_images, snapshot = process_images(parent_directory, patient_dir, id_vas_dict, snapshot)
+        processed_images, snapshot = process_images(parent_directory, patient_dir, snapshot)
         after_func = psutil.Process().memory_info().rss / (1024 * 1024)
         if processed_images == None:
             continue
@@ -335,7 +381,7 @@ if __name__ == "__main__":
     if not raw or creating_pvas_loader:
         process_types = ['base']
     # tracemalloc.start()
-    dataset_entries = preprocess_and_zip_all_images(image_directory, id_vas_dict)
+    dataset_entries = preprocess_and_zip_all_images(image_directory)
     for process_type in dataset_entries:
         # torch.save(dataset_entries[process_type], processed_dataset_save_location[:-4]+'_'+process_type+'_otsu_1st.pth')
         save_location_and_name = processed_dataset_save_location[:-5]+'_'+process_type+'.pth'
