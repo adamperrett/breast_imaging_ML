@@ -105,11 +105,13 @@ if vas_or_vbd == 'vas':
     regression_target_data['R_CC'] = procas_data['VASCombinedAvDensity']
 else:
     if average_score:
+        save_name += '_average'
         regression_target_data['L_MLO'] = procas_data['VBD']
         regression_target_data['L_CC'] = procas_data['VBD']
         regression_target_data['R_MLO'] = procas_data['VBD']
         regression_target_data['R_CC'] = procas_data['VBD']
     else:
+        save_name += '_per_im'
         regression_target_data['L_MLO'] = procas_data['vbd_L_MLO']
         regression_target_data['L_CC'] = procas_data['vbd_L_CC']
         regression_target_data['R_MLO'] = procas_data['vbd_R_MLO']
@@ -124,6 +126,7 @@ for image_type in regression_target_data:
             id_target_dict[image_type]["{:05}".format(int(id))] = target
 
 if filter_uncommon_views:
+    save_name += '_filtered'
     # Find common IDs across all image types
     common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
     for image_type, ids in id_target_dict.items():
@@ -132,7 +135,8 @@ if filter_uncommon_views:
     # Filter the dictionaries to retain only common IDs
     for image_type in id_target_dict:
         id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
-
+else:
+    save_name += '_unfiltered'
 # processed_dataset_save_location = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
 processed_dataset_save_location = os.path.join(save_dir, save_name, '.pth')
 image_statistics_pre = []
