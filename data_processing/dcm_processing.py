@@ -48,7 +48,7 @@ creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False
 split_CC_and_MLO = False
 average_score = False
-filter_uncommon_views = False
+filter_uncommon_views = True
 
 vas_or_vbd = 'vbd'
 
