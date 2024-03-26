@@ -301,6 +301,10 @@ def process_images(parent_directory, patient_dir, snapshot):
             preprocessed_images = torch.stack([pvas_preprocess_image(im, side, type, view) for
                                    im, side, type, view in
                                    zip(copied_images, all_sides, all_image_types, all_views)]).to(torch.float32)
+        for im in preprocessed_images:
+            if torch.sum(torch.isnan(im)) > 0:
+                print("\nImage was corrupted in processing by", torch.sum(np.isnan(im)), "pixel(s)\n")
+                return None, snapshot
         if not by_patient:
             for p_i, i_f, v, s in zip(preprocessed_images, image_files, all_views, all_sides):
                 target_value = id_target_dict[s+'_'+v][patient_dir[-5:]]
