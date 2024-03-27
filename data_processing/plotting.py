@@ -13,17 +13,17 @@ import seaborn as sns
 from sklearn.metrics import r2_score
 
 
-def plot_scatter(true_values, pred_values, title, save_location=None):
-    plt.figure(figsize=(10, 6))
-    plt.scatter(true_values, pred_values, alpha=0.5)
-    plt.plot([min(true_values), max(true_values)], [min(true_values), max(true_values)], '--', lw=2)
-    plt.xlabel('True Values')
-    plt.ylabel('Predicted Values')
-    plt.title(title)
+def plot_scatter(true_values, pred_values, title, save_location=None, return_figure=True):
+    fig, ax = plt.subplots(figsize=(10, 6))  # Use plt.subplots() to get the figure and axes objects
+    ax.scatter(true_values, pred_values, alpha=0.5)
+    ax.plot([min(true_values), max(true_values)], [min(true_values), max(true_values)], '--', lw=2)
+    ax.set_xlabel('True Values')
+    ax.set_ylabel('Predicted Values')
+    ax.set_title(title)
     if save_location:
-        plt.savefig(save_location+"/{}.png".format(title), bbox_inches='tight',
-                    # dpi=200,
-                    format='png')
+        fig.savefig(f"{save_location}/{title}.png", bbox_inches='tight', format='png')
+    if return_figure:
+        return fig
     else:
         plt.show()
 

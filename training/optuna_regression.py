@@ -174,6 +174,10 @@ def regression_training(trial):
         print("Evaluating on the test set")
         test_loss, test_labels, test_preds, test_r2 = evaluate_model(model, test_loader, criterion,
                                                                      inverse_standardize_targets, mean, std)
+        val_fig = plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, False, True)
+        writer.add_figure("Validation Scatter Plot/{}".format(best_model_name), val_fig, epoch)
+        test_fig = plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, False, True)
+        writer.add_figure("Test Scatter Plot/{}".format(best_model_name), test_fig, epoch)
         print(f"Epoch {epoch + 1}/{num_epochs}, "
               f"\nTrain Loss: {scaled_train_loss:.4f}, Val Loss: {val_loss:.4f}, Test loss: {test_loss:.4f}"
               f"\nTrain R2: {train_r2:.4f}, Val R2: {val_r2:.4f}, Test R2: {test_r2:.4f}")

@@ -43,16 +43,16 @@ sns.set(style='dark')
 
 print("Reading data")
 
-raw = False
+raw = False  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
-by_patient = False
-split_CC_and_MLO = False
-average_score = False
-filter_uncommon_views = True
+by_patient = False  # DEPRICATED: Put all patient images into a single data instance
+split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine it all
+average_score = False  # Do you want per image scores or average over all views
+filter_uncommon_views = True  # Needs to stay this way unless you change the way lists are iterated through
 
 vas_or_vbd = 'vbd'
 
-process_types = ['log']#, 'histo', 'clahe']
+process_types = ['log']#, 'histo', 'clahe']  # only relevant to raw data
 
 csf = True
 if csf:
@@ -99,10 +99,16 @@ else:
 
 regression_target_data = {}
 if vas_or_vbd == 'vas':
-    regression_target_data['L_MLO'] = procas_data['VASCombinedAvDensity']
-    regression_target_data['L_CC'] = procas_data['VASCombinedAvDensity']
-    regression_target_data['R_MLO'] = procas_data['VASCombinedAvDensity']
-    regression_target_data['R_CC'] = procas_data['VASCombinedAvDensity']
+    if average_score:
+        regression_target_data['L_MLO'] = procas_data['VASCombinedAvDensity']
+        regression_target_data['L_CC'] = procas_data['VASCombinedAvDensity']
+        regression_target_data['R_MLO'] = procas_data['VASCombinedAvDensity']
+        regression_target_data['R_CC'] = procas_data['VASCombinedAvDensity']
+    else:
+        regression_target_data['L_MLO'] = procas_data['LMLO']
+        regression_target_data['L_CC'] = procas_data['LCC']
+        regression_target_data['R_MLO'] = procas_data['RMLO']
+        regression_target_data['R_CC'] = procas_data['RCC']
 else:
     if average_score:
         save_name += '_average'
