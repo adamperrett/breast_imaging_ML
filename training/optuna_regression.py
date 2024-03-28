@@ -302,7 +302,7 @@ if __name__ == "__main__":
         study = optuna.create_study(study_name=study_name, storage=storage_url, load_if_exists=True,
                                     # sampler=optuna.samplers.TPESampler,
                                     # sampler=optuna.samplers.NSGAIIISampler(population_size=30), # can do multiple objectives
-                                    direction='minimize', pruner=optuna.pruners.MedianPruner())
+                                    direction='minimize', pruner=optuna.pruners.HyperbandPruner())
         print("Beginning optimisation")
         study.optimize(regression_training, n_trials=1)  # Each script execution does 1 trial
 

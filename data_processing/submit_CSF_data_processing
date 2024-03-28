@@ -1,6 +1,6 @@
 #!/bin/bash --login
 #$ -cwd
-#$ -pe smp.pe 4
+#$ -pe smp.pe 5
 #$ -l mem2000
 
 module load apps/binapps/anaconda3/4.2.0

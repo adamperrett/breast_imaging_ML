@@ -48,7 +48,7 @@ creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False  # DEPRICATED: Put all patient images into a single data instance
 split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine it all
 average_score = False  # Do you want per image scores or average over all views
-filter_uncommon_views = True  # Needs to stay this way unless you change the way lists are iterated through
+remove_priors = True  # Will the dataset filter out priors, if not only priors will be retained
 
 vas_or_vbd = 'vbd'
 
@@ -63,12 +63,16 @@ if csf:
         csv_name = 'PROCAS_Volpara_dirty.csv'
     # save_dir = '/mnt/bmh01-rds/assure/processed_data/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
-    save_name = 'procas_all'
+    if remove_priors:
+        save_name = 'procas'
+    else:
+        save_name = 'priors'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
     # csv_name = 'priors_per_image_reader_and_MAI.csv'
     if vas_or_vbd == 'vas':
-        csv_name = 'priors_per_image_reader_and_MAI.csv'
+        # csv_name = 'priors_per_image_reader_and_MAI.csv'
+        csv_name = 'pvas_data_sheet.csv'
     else:
         csv_name = 'PROCAS_Volpara_dirty.csv'
     save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
@@ -81,6 +85,7 @@ if creating_pvas_loader:
 save_name += '_'+vas_or_vbd
 
 procas_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
+priors_data = pd.read_csv(os.path.join(csv_directory, 'MAI_VAS_priors_v0.csv'), sep=',')
 
 if raw:
     if csf:
@@ -88,6 +93,7 @@ if raw:
     else:
         image_directory = 'D:/priors_data/raw'
     procas_ids = procas_data['ASSURE_RAW_ID']
+    priors_ids = priors_data['ASSURE_RAW_ID']
     save_name += '_raw'
 else:
     if csf:
@@ -95,7 +101,15 @@ else:
     else:
         image_directory = 'D:/priors_data/processed'
     procas_ids = procas_data['ASSURE_PROCESSED_ANON_ID']
+    priors_ids = priors_data['ASSURE_PROCESSED_ANON_ID']
     save_name += '_processed'
+
+def format_id(id):
+    # Ensure the id is an integer and format it
+    return "{:05}".format(int(id))
+
+# Drop NaN values, then apply the formatting function
+priors_ids = priors_ids.dropna().apply(format_id)
 
 regression_target_data = {}
 if vas_or_vbd == 'vas':
@@ -123,7 +137,7 @@ else:
         regression_target_data['R_MLO'] = procas_data['vbd_R_MLO']
         regression_target_data['R_CC'] = procas_data['vbd_R_CC']
 
-# save mosaic_ids which have a vas score and Study_type was Breast Screening
+# save patient_ids which have a regression target
 id_target_dict = {}
 for image_type in regression_target_data:
     id_target_dict[image_type] = {}
@@ -131,18 +145,23 @@ for image_type in regression_target_data:
         if not np.isnan(target) and target >= 0 and not np.isnan(id):
             id_target_dict[image_type]["{:05}".format(int(id))] = target
 
-if filter_uncommon_views:
-    save_name += '_filtered'
-    # Find common IDs across all image types
-    common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
-    for image_type, ids in id_target_dict.items():
-        common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
+# Find common IDs across all image types
+common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
+for image_type, ids in id_target_dict.items():
+    common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
 
-    # Filter the dictionaries to retain only common IDs
-    for image_type in id_target_dict:
-        id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
+# Additional filtering based on 'filter_priors'
+if remove_priors:
+    # If filtering priors, remove keys in 'priors_ids' from 'common_ids'
+    common_ids -= set(priors_ids.values)
 else:
-    save_name += '_unfiltered'
+    # If not filtering priors, retain only IDs shared between 'common_ids' and 'priors_ids'
+    common_ids &= set(priors_ids.values)
+
+# Apply the final set of 'common_ids' to filter 'id_target_dict'
+for image_type in id_target_dict:
+    id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
+
 # processed_dataset_save_location = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
 processed_dataset_save_location = os.path.join(save_dir, save_name, '.pth')
 image_statistics_pre = []
