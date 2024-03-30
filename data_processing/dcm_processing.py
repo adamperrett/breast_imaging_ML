@@ -70,9 +70,9 @@ if csf:
     # save_dir = '/mnt/bmh01-rds/assure/processed_data/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
     if use_priors:
-        save_name = 'procas'
-    else:
         save_name = 'priors'
+    else:
+        save_name = 'procas'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
     # csv_name = 'priors_per_image_reader_and_MAI.csv'
