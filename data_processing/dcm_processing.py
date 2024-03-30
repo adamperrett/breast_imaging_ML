@@ -356,7 +356,7 @@ def process_images(parent_directory, patient_dir, snapshot):
                                                               patient_dir, i_f))
                 else:
                     dataset_entries[process_type].append((p_i, target_value,
-                                                          patient_dir, i_f, v))
+                                                          patient_dir, i_f))
         else:
             dataset_entries[process_type].append((preprocessed_images, id_target_dict['L_MLO'][patient_dir[-5:]],
                                                   patient_dir, image_files))
