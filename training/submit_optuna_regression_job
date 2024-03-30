@@ -7,6 +7,4 @@ module load tools/env/proxy
 
 source activate venv
 
-cd /mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training
-
 python3 optuna_regression.py

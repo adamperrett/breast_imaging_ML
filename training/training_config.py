@@ -40,13 +40,17 @@ if on_CSF:
     working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
     # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     if optuna_optimisation:
-        base_name = 'init_'+CC_or_MLO
+        base_name = 'big_filter'
         n_images = 0
-        processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
-        if CC_or_MLO == 'CC':
-            data_name = 'procas_all_pvas_vbd_processed_base_CC'
-        else:
-            data_name = 'procas_all_pvas_vbd_processed_base_MLO'
+        # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
+        processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
+        data_name = 'priors_pvas_vbd_processed_per_im_base'
+        if split_CC_and_MLO:
+            base_name += CC_or_MLO
+            if CC_or_MLO == 'CC':
+                data_name += '_CC'
+            else:
+                data_name += '_MLO'
         processed_dataset_path += data_name+'.pth'
 
         # data_name = 'priors_pvas_processed_base_CC'
