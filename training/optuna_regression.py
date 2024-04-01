@@ -64,7 +64,7 @@ def round_to_(x, sig_fig=2):
 def regression_training(trial):
     if on_CSF and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
-        op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'd_adam', 'd_sgd', 'sgd'])
+        op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
         batch_size = trial.suggest_int('batch_size', 2, 32)
         dropout = trial.suggest_float('dropout', 0, 0.7)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
@@ -302,7 +302,7 @@ if __name__ == "__main__":
         study = optuna.create_study(study_name=study_name, storage=storage_url, load_if_exists=True,
                                     # sampler=optuna.samplers.TPESampler,
                                     # sampler=optuna.samplers.NSGAIIISampler(population_size=30), # can do multiple objectives
-                                    direction='minimize', pruner=optuna.pruners.NopPruner())
+                                    direction='minimize', pruner=optuna.pruners.HyperbandPruner())
         print("Beginning optimisation")
         study.optimize(regression_training, n_trials=1)  # Each script execution does 1 trial
 
