@@ -57,7 +57,7 @@ def inverse_standardize_targets(target, mean, std):
     return target * std + mean
 
 
-def compute_sample_weights(targets, n_bins=20, only_bins=False, minv=0, maxv=2**14):
+def compute_sample_weights(targets, n_bins=7, only_bins=False, minv=0, maxv=2**14):
     # Discretize the target variable into bins
     if only_bins:
         bins = np.linspace(minv, maxv, n_bins)
@@ -73,10 +73,10 @@ def compute_sample_weights(targets, n_bins=20, only_bins=False, minv=0, maxv=2**
     # Set a minimum count for bins
     # min_count = 1  # setting this to 1 ensures no divide by zero issue
     # bin_counts = np.maximum(bin_counts, min_count)
-    bin_counts += 10
+    bin_counts += 1
 
     bin_weights = 1. / bin_counts
-    bin_weights /= bin_weights.sum()
+    bin_weights /= bin_weights.mean()
 
     # Assign weight to each sample based on its bin
     sample_weights = bin_weights[digitized]

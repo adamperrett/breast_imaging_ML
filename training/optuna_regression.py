@@ -128,8 +128,8 @@ def regression_training(trial):
         scaled_train_loss = 0.0
         for inputs, targets, weights, dir, view in tqdm(train_loader):  # Simplified unpacking
             inputs, targets, weights = inputs.to('cuda'), targets.to(device), weights.to(device)  # Send data to GPU
-            print("inputs, targets, weights, dir, view")
-            print(inputs, "\n", targets, "\n", weights, "\n", dir, "\n", view)
+            # print("inputs, targets, weights, dir, view")
+            # print(inputs, "\n", targets, "\n", weights, "\n", dir, "\n", view)
             print("Loaded images\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             if torch.sum(torch.isnan(inputs)) > 0:
                 print("Image is corrupted", torch.sum(torch.isnan(inputs), dim=1))
