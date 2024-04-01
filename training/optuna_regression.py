@@ -65,7 +65,7 @@ def regression_training(trial):
     if on_CSF and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
         op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-        batch_size = trial.suggest_int('batch_size', 2, 32)
+        batch_size = trial.suggest_int('batch_size', 5, 32)
         dropout = trial.suggest_float('dropout', 0, 0.7)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
