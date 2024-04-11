@@ -1,17 +1,9 @@
 import math
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision.models import resnet34
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import torchvision.models as torch_models
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import seaborn as sns
-from sklearn.metrics import r2_score
 
 
 class Identity(nn.Module):

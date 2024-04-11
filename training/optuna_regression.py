@@ -1,24 +1,8 @@
 print("Starting imports")
-import torch
 from dadaptation import DAdaptAdam, DAdaptSGD
 import sys
-import os
-import re
-import pydicom
-import random
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import seaborn as sns
 import time
-from skimage.transform import resize
-from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision.transforms.functional import pad
-from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
-from skimage import filters
-import torchvision.transforms as T
 import optuna
 import sqlite3
 import os

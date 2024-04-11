@@ -1,5 +1,4 @@
 import sys
-import os
 
 
 num_epochs = 600
