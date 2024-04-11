@@ -15,7 +15,7 @@ csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
 # csv_name = 'updated_all_priors.csv'
 # csv_name = 'priors_per_image_reader_and_MAI.csv'
 # csv_name = 'PROCAS_Volpara_dirty.csv'
-csv_name = 'volpara_priors_testing.csv'
+csv_name = 'volpara_priors_testing_CC.csv'
 # csv_name = 'average_mosaic_performance.csv'
 # csv_name = 'individual_mosaic_performance.csv'
 df = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')

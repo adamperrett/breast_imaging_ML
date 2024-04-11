@@ -40,7 +40,7 @@ criterion = nn.MSELoss(reduction='none')
 testing_data = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/priors_pvas_vbd_processed_per_im_base.pth'
 
 model_location = 'C:/Users/adam_/OneDrive/Documents/Research/Breast cancer/results/full volpara/models'
-model_name = 'big_filter_lr1.9e-05x8_resnetrans_p1r0_drop0.0459_adam_t0_w0'
+model_name = 'l_big_filterCC_lr0.00067x15_pvas_p1r0_drop0.0329_adam_t0_w0'
 test_name = model_name
 pretrain = 1
 replicate = 0
@@ -48,12 +48,15 @@ dropout = 0.0459
 batch_size = 32
 
 print('Loading model')
-model = ResNetTransformer(pretrain=False, replicate=replicate, dropout=dropout).to('cuda')
-model.load_state_dict(torch.load(os.path.join(current_path, 'l_'+model_name)))
+# model = ResNetTransformer(pretrain=False, replicate=replicate, dropout=dropout).to('cuda')
+model = Pvas_Model(pretrain=False, replicate=replicate, dropout=dropout).to('cuda')
+model.load_state_dict(torch.load(os.path.join(current_path, 'best_models', model_name)))
 
 print('Making dataloader')
 training_mean, training_std = 6.448529270685709, 4.314404263091535
-data_loader = return_dataloaders(testing_data, transformed=0, weighted=0, batch_size=batch_size, only_testing=True)
+data_loader = return_dataloaders(testing_data, transformed=0,
+                                 weighted_loss=0, weighted_sampling=0,
+                                 batch_size=batch_size, only_testing=True)
 
 print("Evaluating model")
 loss, labels, preds, r2, file_names = evaluate_model(model, data_loader, criterion,
@@ -104,7 +107,7 @@ for view_code, column_name in view_column_mapping.items():
 procas_data[f'VBD_{test_name}'] = procas_data[[view_column_mapping['LCC'], view_column_mapping['RCC'], view_column_mapping['LMLO'], view_column_mapping['RMLO']]].mean(axis=1)
 
 # Save the updated dataframe to a new CSV file
-output_csv_name = 'volpara_priors_testing.csv'  # Update this filename as needed
+output_csv_name = 'volpara_priors_testing_CC.csv'  # Update this filename as needed
 procas_data.to_csv(os.path.join(csv_directory, output_csv_name), index=False)
 
 print(f"Updated data saved to {os.path.join(csv_directory, output_csv_name)}")
