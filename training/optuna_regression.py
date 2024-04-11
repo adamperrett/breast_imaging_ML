@@ -63,31 +63,34 @@ def round_to_(x, sig_fig=2):
 
 def regression_training(trial):
     if on_CSF and optuna_optimisation:
-        lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
-        op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
+        lr = trial.suggest_float('lr', 1e-6, 2e-4, log=True)
+        op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
         batch_size = trial.suggest_int('batch_size', 5, 32)
-        dropout = trial.suggest_float('dropout', 0, 0.7)
+        dropout = trial.suggest_float('dropout', 0, 0.6)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
         replicate = trial.suggest_categorical('replicate', [0, 1])
-        transformed = trial.suggest_categorical('transformed', [0, 1])
-        weighted = trial.suggest_categorical('weighted', [0, 1])
+        transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
+        weight_samples = trial.suggest_categorical('weight_samples', [0, 1])
+        weight_loss = trial.suggest_categorical('weight_loss', [0, 1])
 
-    best_model_name = '{}_lr{}x{}_{}_p{}r{}_drop{}_{}_t{}_w{}'.format(
-        base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed, weighted)
+    best_model_name = '{}_lr{}x{}_{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
+        base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed,
+        weight_loss, weight_samples)
 
     print("Accessing data from", processed_dataset_path, "\nConfig", best_model_name)
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted, batch_size)
+    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed,
+                                                               weight_loss, weight_samples, batch_size)
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
     #edit cuda
     print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
     if arch == 'pvas':
-        model = Pvas_Model(pre_trained, replicate, dropout).to('cuda')
+        model = Pvas_Model(pre_trained, replicate, dropout, split=split_CC_and_MLO).to('cuda')
     else:
-        model = ResNetTransformer(pre_trained, replicate, dropout).to('cuda')
+        model = ResNetTransformer(pre_trained, replicate, dropout, split=split_CC_and_MLO).to('cuda')
     epsilon = 0.
     # model = TransformerModel(epsilon=epsilon).to(device)
     criterion = nn.MSELoss(reduction='none')  # Mean squared error for regression
@@ -127,7 +130,7 @@ def regression_training(trial):
         train_loss = 0.0
         scaled_train_loss = 0.0
         for inputs, targets, weights, dir, view in tqdm(train_loader):  # Simplified unpacking
-            inputs, targets, weights = inputs.to('cuda'), targets.to(device), weights.to(device)  # Send data to GPU
+            inputs, targets, weights = inputs.to('cuda'), targets.to('cuda'), targets.to('cuda')  # Send data to GPU
             # print("inputs, targets, weights, dir, view")
             # print(inputs, "\n", targets, "\n", weights, "\n", dir, "\n", view)
             print("Loaded images\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
@@ -139,9 +142,17 @@ def regression_training(trial):
             # Zero the parameter gradients
             optimizer.zero_grad()
 
+            is_it_mlo = torch.zeros_like(targets).float()
+            if not split_CC_and_MLO:
+                for i in range(len(view)):
+                    if 'MLO' in view[i]:
+                        is_it_mlo[i] += 1
+                    else:
+                        is_it_mlo[i] -= 1
+
             # Forward
             print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-            outputs = model(inputs.unsqueeze(1)).to(device)  # Add channel dimension
+            outputs = model.forward(inputs.unsqueeze(1), is_it_mlo)  # Add channel dimension
             print("Before losses\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
             print("Before weighting\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
@@ -166,14 +177,16 @@ def regression_training(trial):
         train_loss /= len(train_loader.dataset)
         scaled_train_loss /= len(train_loader.dataset)
 
-        train_r2 = r2_score(all_targets, all_predictions)
+        train_r2 = r2_score(all_targets, all_predictions, sample_weight=all_targets)
         # Validation
         print("Evaluating on the validation set")
         val_loss, val_labels, val_preds, val_r2 = evaluate_model(model, val_loader, criterion,
-                                                                 inverse_standardize_targets, mean, std)
+                                                                 inverse_standardize_targets, mean, std,
+                                                                 split_CC_and_MLO=split_CC_and_MLO)
         print("Evaluating on the test set")
         test_loss, test_labels, test_preds, test_r2 = evaluate_model(model, test_loader, criterion,
-                                                                     inverse_standardize_targets, mean, std)
+                                                                     inverse_standardize_targets, mean, std,
+                                                                     split_CC_and_MLO=split_CC_and_MLO)
         val_fig = plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, False, True)
         writer.add_figure("Validation Scatter Plot/{}".format(best_model_name), val_fig, epoch)
         test_fig = plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, False, True)
@@ -192,7 +205,7 @@ def regression_training(trial):
         if on_CSF and optuna_optimisation:
             for attempt in range(40):
                 try:
-                    trial.report(val_loss, epoch)
+                    trial.report(val_r2, epoch)
                     if trial.should_prune():
                         print("Pruning", best_model_name)
                         raise optuna.TrialPruned()
@@ -248,18 +261,22 @@ def regression_training(trial):
     print("Loading best model weights!")
     model.load_state_dict(torch.load(working_dir + '/../models/l_' + best_model_name))
 
-    train_loader.transform = None
+    train_loader.dataset.transform = None
+    if weight_samples:
+        train_loader.sampler.weights = torch.ones_like(train_loader.sampler.weights)
+        train_loader.sampler.replacement = False
 
     # Evaluating on all datasets: train, val, test
     print("Final evaluation on the train set")
     train_loss, train_labels, train_preds, train_r2 = evaluate_model(model, train_loader, criterion,
-                                                                     inverse_standardize_targets, mean, std)
+                                                                     inverse_standardize_targets, mean, std,
+                                                                     split_CC_and_MLO=split_CC_and_MLO)
     print("Final evaluation on the validation set")
     val_loss, val_labels, val_preds, val_r2 = evaluate_model(model, val_loader, criterion, inverse_standardize_targets,
-                                                             mean, std)
+                                                             mean, std, split_CC_and_MLO=split_CC_and_MLO)
     print("Final evaluation on the test set")
     test_loss, test_labels, test_preds, test_r2 = evaluate_model(model, test_loader, criterion, inverse_standardize_targets,
-                                                                 mean, std)
+                                                                 mean, std, split_CC_and_MLO=split_CC_and_MLO)
 
     # R2 Scores
     print(f"Train R2 Score: {train_r2:.4f}")
@@ -289,7 +306,7 @@ def regression_training(trial):
 
     print("Done")
 
-    return np.min(val_loss)
+    return np.max(val_r2)
 
 
 
@@ -302,7 +319,7 @@ if __name__ == "__main__":
         study = optuna.create_study(study_name=study_name, storage=storage_url, load_if_exists=True,
                                     # sampler=optuna.samplers.TPESampler,
                                     # sampler=optuna.samplers.NSGAIIISampler(population_size=30), # can do multiple objectives
-                                    direction='minimize', pruner=optuna.pruners.HyperbandPruner())
+                                    direction='maximize', pruner=optuna.pruners.HyperbandPruner())
         print("Beginning optimisation")
         study.optimize(regression_training, n_trials=1)  # Each script execution does 1 trial
 

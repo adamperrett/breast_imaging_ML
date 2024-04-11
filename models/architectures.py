@@ -50,7 +50,7 @@ def returnModel(pretrain, replicate):
 
 
 class Pvas_Model(nn.Module):
-    def __init__(self, pretrain, replicate, dropout=0.5):
+    def __init__(self, pretrain, replicate, dropout=0.5, split=True):
         super(Pvas_Model, self).__init__()
 
         self.replicate = replicate
@@ -58,6 +58,9 @@ class Pvas_Model(nn.Module):
         self.D = 2048  ## out of the model
         self.K = 1024  ## intermidiate
         self.L = 512
+        self.split = split
+        if not split:
+            self.D += 1
 
         ## Standard regressor
         self.regressor = nn.Sequential(
@@ -71,8 +74,10 @@ class Pvas_Model(nn.Module):
         )
 
     ## Feed forward function
-    def forward(self, x):
+    def forward(self, x, is_it_mlo):
         H = self.extractor(x)
+        if not self.split:
+            H = torch.vstack([H.T, is_it_mlo]).T
         r = self.regressor(H)
         return r
 
@@ -128,7 +133,7 @@ class SimpleCNN(nn.Module):
 
 # define complex resnet into transformer model
 class ResNetTransformer(nn.Module):
-    def __init__(self, pretrain, replicate, dropout=0.5):
+    def __init__(self, pretrain, replicate, dropout=0.5, split=True):
         super(ResNetTransformer, self).__init__()
 
         # Using ResNet-34 as a feature extractor
@@ -139,6 +144,9 @@ class ResNetTransformer(nn.Module):
         self.D = d_model  ## out of the model
         self.K = 1024  ## intermidiate
         self.L = 512
+        self.split = split
+        if not split:
+            self.D += 1
 
         # Modify the first layer to accept single-channel (grayscale) images
         # self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
@@ -172,7 +180,7 @@ class ResNetTransformer(nn.Module):
             nn.Linear(self.L, 1)
         )
 
-    def forward(self, x):
+    def forward(self, x, is_it_mlo):
         # Extract features using ResNet
         x = self.resnet(x)
         x = x.unsqueeze(1)  # Add sequence length dimension for Transformer
@@ -182,6 +190,8 @@ class ResNetTransformer(nn.Module):
 
         # Regression
         x = x.squeeze(1)
+        if not self.split:
+            x = torch.vstack([x.T, is_it_mlo]).T
         x = self.regressor(x)
 
         return x

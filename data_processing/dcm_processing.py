@@ -46,7 +46,7 @@ print("Reading data")
 raw = False  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False  # DEPRICATED: Put all patient images into a single data instance
-split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine it all
+split_CC_and_MLO = True  # Create a separate dataset for CC and MLO or combine it all
 average_score = False  # Do you want per image scores or average over all views
 remove_excluded = True  # Will the dataset filter out priors, if not only priors will be retained
 use_priors = False
@@ -104,7 +104,7 @@ if raw:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_RAW'
     else:
-        image_directory = 'D:/priors_data/raw'
+        image_directory = 'Z:/PROCAS_ALL_RAW'
     procas_ids = procas_data['ASSURE_RAW_ID']
     selected_ids = selected_patients['ASSURE_RAW_ID']
     post_exclusion_ids = after_exclusion['ASSURE_RAW_ID']
@@ -113,7 +113,7 @@ else:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED'
     else:
-        image_directory = 'D:/priors_data/processed'
+        image_directory = 'Z:/PROCAS_ALL_PROCESSED'
     procas_ids = procas_data['ASSURE_PROCESSED_ANON_ID']
     selected_ids = selected_patients['ASSURE_PROCESSED_ANON_ID']
     post_exclusion_ids = after_exclusion['ASSURE_PROCESSED_ANON_ID']
