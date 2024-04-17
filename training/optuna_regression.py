@@ -49,7 +49,7 @@ def regression_training(trial):
     if on_CSF and optuna_optimisation:
         lr = trial.suggest_float('lr', 1e-6, 2e-4, log=True)
         op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-        batch_size = trial.suggest_int('batch_size', 5, 32)
+        batch_size = trial.suggest_int('batch_size', 5, 29)
         dropout = trial.suggest_float('dropout', 0, 0.6)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
@@ -92,7 +92,7 @@ def regression_training(trial):
 
 
     # Training parameters
-    not_improved = 0
+    not_improved_loss = 0
     not_improved_r2 = 0
     best_val_loss = float('inf')
     best_test_loss = float('inf')
@@ -189,7 +189,10 @@ def regression_training(trial):
         if on_CSF and optuna_optimisation:
             for attempt in range(40):
                 try:
-                    trial.report(val_r2, epoch)
+                    if improving_loss_or_r2 == 'r2':
+                        trial.report(val_r2, epoch)
+                    else:
+                        trial.report(val_loss, epoch)
                     if trial.should_prune():
                         print("Pruning", best_model_name)
                         raise optuna.TrialPruned()
@@ -213,22 +216,22 @@ def regression_training(trial):
             best_test_loss = test_loss
             best_val_l_r2 = val_r2
             best_test_l_r2 = test_r2
-            not_improved = 0
+            not_improved_loss = 0
             print("Validation loss improved. Saving best_model.")
-            print(f"From best val loss at epoch {epoch - not_improved}:\n "
-                  f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f} val r2: {best_val_l_r2:.4f} test r2 {best_test_l_r2:.4f}")
-            print(f"From best val R2 at epoch {epoch - not_improved_r2}:\n "
-                  f"val loss: {best_val_r_loss:.4f} test loss {best_test_r_loss:.4f} val r2: {best_val_r2:.4f} test r2 {best_test_r2:.4f}")
             torch.save(model.state_dict(), working_dir + '/../models/l_' + best_model_name)
         else:
-            not_improved += 1
-            print(f"From best val loss at epoch {epoch - not_improved}:\n "
-                  f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f} val r2: {best_val_l_r2:.4f} test r2 {best_test_l_r2:.4f}")
-            print(f"From best val R2 at epoch {epoch - not_improved_r2}:\n "
-                  f"val loss: {best_val_r_loss:.4f} test loss {best_test_r_loss:.4f} val r2: {best_val_r2:.4f} test r2 {best_test_r2:.4f}")
-            if not_improved >= patience:
-                print("Early stopping")
-                break
+            not_improved_loss += 1
+        print(f"From best val loss at epoch {epoch - not_improved_loss}:\n "
+              f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f} val r2: {best_val_l_r2:.4f} test r2 {best_test_l_r2:.4f}")
+        print(f"From best val R2 at epoch {epoch - not_improved_r2}:\n "
+              f"val loss: {best_val_r_loss:.4f} test loss {best_test_r_loss:.4f} val r2: {best_val_r2:.4f} test r2 {best_test_r2:.4f}")
+        if improving_loss_or_r2 == 'r2':
+            time_since_improved = not_improved_r2
+        else:
+            time_since_improved = not_improved_loss
+        if time_since_improved >= patience:
+            print("Early stopping")
+            break
 
         writer.add_scalar('Loss/Best Validation Loss from Loss', best_val_loss, epoch)
         writer.add_scalar('Loss/Best Validation Loss from R2', best_val_r_loss, epoch)
@@ -290,7 +293,10 @@ def regression_training(trial):
 
     print("Done")
 
-    return np.max(val_r2)
+    if improving_loss_or_r2 == 'r2':
+        return np.max(val_r2)
+    else:
+        return np.min(val_loss)
 
 
 
@@ -300,10 +306,14 @@ if __name__ == "__main__":
     if on_CSF:
         study_name = '{}_BML_optuna'.format(base_name)  # Unique identifier
         storage_url = 'sqlite:///{}.db'.format(study_name)
+        if improving_loss_or_r2 == 'r2':
+            direction = 'maximize'
+        else:
+            direction = 'minimize'
         study = optuna.create_study(study_name=study_name, storage=storage_url, load_if_exists=True,
                                     # sampler=optuna.samplers.TPESampler,
                                     # sampler=optuna.samplers.NSGAIIISampler(population_size=30), # can do multiple objectives
-                                    direction='maximize', pruner=optuna.pruners.HyperbandPruner())
+                                    direction=direction, pruner=optuna.pruners.NopPruner())
         print("Beginning optimisation")
         study.optimize(regression_training, n_trials=1)  # Each script execution does 1 trial
 

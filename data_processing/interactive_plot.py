@@ -15,13 +15,17 @@ csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
 # csv_name = 'updated_all_priors.csv'
 # csv_name = 'priors_per_image_reader_and_MAI.csv'
 # csv_name = 'PROCAS_Volpara_dirty.csv'
-csv_name = 'volpara_priors_testing_CC.csv'
+# csv_name = 'volpara_priors_testing.csv'
+csv_name = 'volpara_priors_testing_weight.csv'
 # csv_name = 'average_mosaic_performance.csv'
 # csv_name = 'individual_mosaic_performance.csv'
 df = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 image_dir_path = 'Z:\\PROCAS_ALL_PROCESSED\\'
 
 valid_data = pd.DataFrame()
+
+# add something to plot it as error vs actual + stdev bars instead
+plot_error = False
 
 columns_to_convert = ['ave_MAI_VAS_PRO', 'ave_MAI_VAS_RAW']
 # Convert each column to numeric
@@ -51,20 +55,51 @@ def update_plot():
     # Calculate MSE and R2
     mse = mean_squared_error(valid_data[selected_x], valid_data[selected_y])
     r2 = r2_score(valid_data[selected_x], valid_data[selected_y])
+    wx_r2 = r2_score(valid_data[selected_x], valid_data[selected_y], sample_weight=valid_data[selected_x])
+    wy_r2 = r2_score(valid_data[selected_x], valid_data[selected_y], sample_weight=valid_data[selected_y])
 
+    error = df[selected_x] - df[selected_y]
+    import numpy as np
+    stderr = np.std(error)
+    aveerr = np.mean(error)
+    abserr = np.mean(np.abs(error))
     # Create a new Seaborn JointPlot
-    jointplot = sns.jointplot(x=df[selected_x], y=df[selected_y], kind="scatter")
+    if plot_error:
+        interval = stderr * 1.95
+        jointplot = sns.jointplot(x=df[selected_x], y=error, kind="scatter")
+        # Add the MSE and R2 to the plot title
+        ax_joint = jointplot.ax_joint
 
-    # Add the MSE and R2 to the plot title
-    ax_joint = jointplot.ax_joint
+        # Add a faint dashed y=0 line
+        min_v = min(df[selected_x].min(), df[selected_y].min())
+        max_v = max(df[selected_x].max(), df[selected_y].max())
+        ax_joint.plot([min_v, max_v],
+                      [0, 0],
+                      linestyle='-', color='black')
+        ax_joint.plot([min_v, max_v],
+                      [aveerr, aveerr],
+                      linestyle='--', color='red')
+        ax_joint.plot([min_v, max_v],
+                      [interval, interval],
+                      linestyle='--', color='blue')
+        ax_joint.plot([min_v, max_v],
+                      [-interval, -interval],
+                      linestyle='--', color='blue')
+        ax_joint.set_ylabel('Error')
+    else:
+        jointplot = sns.jointplot(x=df[selected_x], y=df[selected_y], kind="scatter")
+        # Add the MSE and R2 to the plot title
+        ax_joint = jointplot.ax_joint
 
-    # Add a faint dashed x=y line
-    ax_joint.plot([df[selected_x].min(), df[selected_x].max()],
-                  [df[selected_y].min(), df[selected_y].max()],
-                  linestyle='--', color='red')
+        # Add a faint dashed x=y line
+        min_v = min(df[selected_x].min(), df[selected_y].min())
+        max_v = max(df[selected_x].max(), df[selected_y].max())
+        ax_joint.plot([min_v, max_v],
+                      [min_v, max_v],
+                      linestyle='--', color='red')
 
     # Add the MSE and R2 as a text box to the right of the plot
-    text = f'MSE: {mse:.2f}\nR²: {r2:.2f}'
+    text = f'MSE: {mse:.2f}\nR²: {r2:.2f}\nx_R²: {wx_r2:.2f}\ny_R²: {wy_r2:.2f}\n√err²: {abserr:.2f}\nstd: {stderr:.2f}'
     plt.figtext(0.93, 0.5, text, ha='center', va='center', fontsize=12)
 
     # Get the current size of the canvas in pixels
@@ -86,11 +121,11 @@ def update_plot():
     canvas.draw_idle()
 
     
-def getPointsNearest(valid_data, xdata, ydata, selected_x, selected_y):
+def getPointsNearest(valid_data, xdata, ydata, x_values, y_values):
     points = pd.DataFrame()
     count = 1
     while points.empty:
-        points = valid_data.loc[((df[selected_x] >= xdata - count) & (df[selected_x] <= xdata + count)) & ((df[selected_y] >= ydata - count) & (df[selected_y] <= ydata + count))]
+        points = valid_data.loc[((x_values >= xdata - count) & (x_values <= xdata + count)) & ((y_values >= ydata - count) & (y_values <= ydata + count))]
         count = count * 1.5
     return points
 
@@ -107,8 +142,14 @@ def onclick(event):
         return
     
     valid_data = df[[selected_x, selected_y]].dropna()
-    
-    foundPoints = getPointsNearest(valid_data, event.xdata, event.ydata, selected_x, selected_y)
+
+    if plot_error:
+        y_values = df[selected_x] - df[selected_y]
+    else:
+        y_values = df[selected_y]
+
+    foundPoints = getPointsNearest(valid_data, event.xdata, event.ydata, df[selected_x], y_values)
+
     print(foundPoints)
     fullFoundPoints = df.iloc[foundPoints.index.values]
     if fullFoundPoints.shape[0] <= 2:
