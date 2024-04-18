@@ -67,10 +67,11 @@ def regression_training(trial):
         op_choice = trial.suggest_categorical('optimiser', ['adam', 'rms', 'd_adam', 'd_sgd', 'sgd'])
         batch_size = trial.suggest_int('batch_size', 2, 32)
         dropout = trial.suggest_float('dropout', 0, 0.7)
-        arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
+        #arch = trial.suggest_categorical('architecture', ['vit', 'pvas', 'resnetrans'])
+        arch = 'vit' 
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
         replicate = trial.suggest_categorical('replicate', [0, 1])
-        transformed = trial.suggest_categorical('transformed', [0, 1])
+        transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
         weighted = trial.suggest_categorical('weighted', [0, 1])
 
     best_model_name = '{}_lr{}x{}_{}_p{}r{}_drop{}_{}_t{}_w{}'.format(
@@ -78,7 +79,7 @@ def regression_training(trial):
 
     print("Accessing data from", processed_dataset_path, "\nConfig", best_model_name)
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted, batch_size)
+    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weighted, batch_size, 0, True)
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
@@ -86,6 +87,8 @@ def regression_training(trial):
     print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
     if arch == 'pvas':
         model = Pvas_Model(pre_trained, replicate, dropout).to('cuda')
+    elif arch == 'vit':
+        model = ViT_Model().to('cuda')
     else:
         model = ResNetTransformer(pre_trained, replicate, dropout).to('cuda')
     epsilon = 0.

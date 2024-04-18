@@ -144,7 +144,7 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 
     return train_data, val_data, test_data
 
-def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size, seed_value=0):
+def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size, seed_value=0, resize=False):
     global mean, std
 
     if os.path.exists(data_name+'_training_data.pth'):
@@ -188,13 +188,16 @@ def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size
             # Assuming images are PIL images; if not, you'll need to adjust or implement suitable transformations
         ])
     else:
-        data_transforms = None
+       data_transforms = None
+    
+    if resize:
+        data_transforms = transforms.Resize(size = (384, 384))
 
     # Load dataset from saved path
     print("Creating Dataset")
     train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
-    val_dataset = MammogramDataset(val_data)
-    test_dataset = MammogramDataset(test_data)
+    val_dataset = MammogramDataset(val_data, transform=data_transforms)
+    test_dataset = MammogramDataset(test_data, transform=data_transforms)
 
     # Create DataLoaders
     print("Creating DataLoaders for", device)

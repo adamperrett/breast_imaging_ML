@@ -68,7 +68,7 @@ if csf:
     else:
         csv_name = 'PROCAS_Volpara_dirty.csv'
     # save_dir = '/mnt/bmh01-rds/assure/processed_data/'
-    save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
+    save_dir = '/mnt/iusers01/ct01/j16252at/scratch/breast_imaging_ML/processed_data'
     if use_priors:
         save_name = 'procas'
     else:
@@ -218,7 +218,7 @@ def pvas_preprocess_image(image, side, image_type, view):
     image = padded_image[0:2995, 0:2394]
 
     ## Resize to this precise dimension
-    image = resize(image, (640, 512))
+    image = resize(image, (384, 384))
 
     ## Max min normalise
     image = image / np.amax(image)

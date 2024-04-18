@@ -1,12 +1,13 @@
 #!/bin/bash --login
 #$ -cwd
-#$ -pe smp.pe 5
-#$ -l mem2000
+#$ -pe smp.pe 8 
+#$ -l mem512
 
-module load apps/binapps/anaconda3/4.2.0
+module load apps/binapps/anaconda3/2022.10
+module load libs/cuda
 
 source activate venv
 
-cd /mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/data_processing
+cd /mnt/iusers01/ct01/j16252/scratch/breast_imaging_ML/data_processing
 
 python3 dcm_processing.py

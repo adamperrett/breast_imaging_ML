@@ -37,7 +37,7 @@ if on_CSF:
     -weights 2
     -transformed 2
     '''
-    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    working_dir = '/mnt/iusers01/ct01/j16252at/scratch/breast_imaging_ML/training/'
     # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     if optuna_optimisation:
         base_name = 'init_'+CC_or_MLO
@@ -53,7 +53,7 @@ if on_CSF:
         # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/priors_pvas_processed_base_CC.pth'
     else:
         configurations = []
-        for b_size in [512, 256, 128, 64]:
+        for b_size in [16, 32]:
             for op_choice in ['adam', 'sgd', 'd_adam', 'd_sgd']:
                 for weight_choice in [0, 1]:
                     for trans_choice in [0, 1]:
@@ -64,7 +64,7 @@ if on_CSF:
                             'weighted': weight_choice,
                             'transformed': trans_choice
                         })
-        best_model_name = 'VAS_csf_{}_{}x{}_t{}_w{}_{}'.format(
+        best_model_name = 'ViT_{}_{}x{}_t{}_w{}_{}'.format(
             op_choice, batch_size, lr, transformed, weighted, int(sys.argv[1]))
 
         print("Config", int(sys.argv[1]) + 1, "creates test", best_model_name)

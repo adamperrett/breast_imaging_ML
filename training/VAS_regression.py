@@ -33,7 +33,8 @@ from data_processing.plotting import *
 
 if on_CSF:
     config = int(sys.argv[1]) - 1
-
+    print(sys.argv[1])
+    print(config)
     config = configurations[config]
     batch_size = config['batch_size']
     op_choice = config['optimizer']

@@ -1,17 +1,19 @@
 import math
 import torch
-import torch.nn as nn
+from torch import nn 
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torchvision.models import resnet34
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import torchvision.models as torch_models
+from transformers import ViTModel, ViTConfig
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.metrics import r2_score
+from skimage.transform import resize
 
 
 class Identity(nn.Module):
@@ -262,3 +264,17 @@ class TransformerModel(nn.Module):
         x = self.classifier(x)  # Classifier
 
         return x
+
+class ViT_Model(nn.Module):
+    def __init__(self, model_checkpoint='google/vit-base-patch32-384', image_size=384, num_labels=1, config=ViTConfig()):
+        super().__init__()
+
+        self.vit = nn.Sequential(GrayscaleToPseudoRGB(), ViTModel.from_pretrained(model_checkpoint))
+        self.classifier = nn.Linear(config.hidden_size, num_labels)
+
+    def forward(self, x):
+        x = self.vit(x)['last_hidden_state']
+        output = self.classifier(x[:, 0, :])
+
+        return output
+
