@@ -41,12 +41,13 @@ testing_data = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/
 
 model_location = 'C:/Users/adam_/OneDrive/Documents/Research/Breast cancer/results/full volpara/models'
 # model_name = 'l_big_filterCC_lr0.00067x15_pvas_p1r0_drop0.0329_adam_t0_w0'
-model_name = 'l_volpara_weight_lr1.99e-05x26_resnetrans_p1r1_d0.254_adam_t0_wl0_ws0'
+# model_name = 'l_volpara_weight_lr1.99e-05x26_resnetrans_p1r1_d0.254_adam_t0_wl0_ws0'
+model_name = 'r_volpara_weightMLO_lr1.07e-05x11_resnetrans_p1r1_d0.575_adam_t0_wl1_ws0'
 test_name = model_name
-split = 0
+split = 1
 pretrain = 1
 replicate = 1
-dropout = 0.0459
+dropout = 0.575
 batch_size = 32
 
 print('Loading model')
@@ -71,7 +72,7 @@ print("r2:", r2)
 print("Splitting into different views and files")
 
 csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
-csv_name = 'PROCAS_Volpara_dirty.csv'
+csv_name = 'volpara_priors_testing_weight.csv'
 procas_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 
 data_dict = {'ASSURE_PROCESSED_ANON_ID': [], 'view': [], 'value': []}

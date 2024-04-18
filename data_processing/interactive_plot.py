@@ -22,6 +22,11 @@ csv_name = 'volpara_priors_testing_weight.csv'
 df = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 image_dir_path = 'Z:\\PROCAS_ALL_PROCESSED\\'
 
+truth_labels = 'priors'
+if truth_labels == 'priors':
+    vas_csv_location = 'priors_per_image_reader_and_MAI.csv'
+    vas_df = pd.read_csv(os.path.join(csv_directory, vas_csv_location), sep=',')
+
 valid_data = pd.DataFrame()
 
 # add something to plot it as error vs actual + stdev bars instead
@@ -58,7 +63,7 @@ def update_plot():
     wx_r2 = r2_score(valid_data[selected_x], valid_data[selected_y], sample_weight=valid_data[selected_x])
     wy_r2 = r2_score(valid_data[selected_x], valid_data[selected_y], sample_weight=valid_data[selected_y])
 
-    error = df[selected_x] - df[selected_y]
+    error = df[selected_y] - df[selected_x]
     import numpy as np
     stderr = np.std(error)
     aveerr = np.mean(error)
@@ -151,7 +156,7 @@ def onclick(event):
     foundPoints = getPointsNearest(valid_data, event.xdata, event.ydata, df[selected_x], y_values)
 
     print(foundPoints)
-    fullFoundPoints = df.iloc[foundPoints.index.values]
+    fullFoundPoints = df.iloc[foundPoints.index.values].drop_duplicates(subset=['ASSURE_PROCESSED_ANON_ID'])
     if fullFoundPoints.shape[0] <= 2:
         showDicomsInDf(fullFoundPoints)
     else:
@@ -165,31 +170,45 @@ def showDicomsInDf(foundPoints):
     if(len(patient_paths) == 0):
         print('None found')
     for patient_path in patient_paths:
+        patient_data = vas_df.loc[vas_df['ASSURE_PROCESSED_ANON_ID'] == int(foundPoints.ASSURE_PROCESSED_ANON_ID.values[0])]
+
         img_paths = sorted(os.listdir(patient_path))
 
         print(img_paths)
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))
-        fig.suptitle(patient_path)        
+        fig.suptitle("VAS: {} for {}".format(patient_data['VASCombinedAvDensity'].values[0], patient_path))
 
         ds = dicom.dcmread(patient_path + '/' + img_paths[0])
         img = ds.pixel_array.astype(float) 
         axs[0, 1].imshow(img, cmap='gray')
-        axs[0, 1].set_title('LCC')
+        LCC_1 = patient_data['LCC-1'].values[0]
+        LCC_2 = patient_data['LCC-2'].values[0]
+        LCC_ave = patient_data['LCC'].values[0]
+        axs[0, 1].set_title('LCC - r₁:{} - r₂:{} - ave:{}'.format(LCC_1, LCC_2, LCC_ave))
 
         ds = dicom.dcmread(patient_path + '/' + img_paths[1])
         img = ds.pixel_array.astype(float) 
         axs[1, 1].imshow(img, cmap='gray')
-        axs[1, 1].set_title('LMLO')
+        LMLO_1 = patient_data['LMLO-1'].values[0]
+        LMLO_2 = patient_data['LMLO-2'].values[0]
+        LMLO_ave = patient_data['LMLO'].values[0]
+        axs[1, 1].set_title('LMLO - r₁:{} - r₂:{} - ave:{}'.format(LMLO_1, LMLO_2, LMLO_ave))
 
         ds = dicom.dcmread(patient_path + '/' + img_paths[2])
         img = ds.pixel_array.astype(float) 
         axs[0, 0].imshow(img, cmap='gray')
-        axs[0, 0].set_title('RCC')
+        RCC_1 = patient_data['RCC-1'].values[0]
+        RCC_2 = patient_data['RCC-2'].values[0]
+        RCC_ave = patient_data['RCC'].values[0]
+        axs[0, 0].set_title('RCC - r₁:{} - r₂:{} - ave:{}'.format(RCC_1, RCC_2, RCC_ave))
         
         ds = dicom.dcmread(patient_path + '/' + img_paths[3])
         img = ds.pixel_array.astype(float) 
         axs[1, 0].imshow(img, cmap='gray')
-        axs[1, 0].set_title('RMLO')
+        RMLO_1 = patient_data['RMLO-1'].values[0]
+        RMLO_2 = patient_data['RMLO-2'].values[0]
+        RMLO_ave = patient_data['RMLO'].values[0]
+        axs[1, 0].set_title('RMLO - r₁:{} - r₂:{} - ave:{}'.format(RMLO_1, RMLO_2, RMLO_ave))
 
         for ax in fig.get_axes():
             ax.label_outer()
