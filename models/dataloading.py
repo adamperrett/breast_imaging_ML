@@ -1,32 +1,9 @@
-import torch
-from dadaptation import DAdaptAdam, DAdaptSGD
-import os
-import re
-import pydicom
 import random
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import seaborn as sns
-from skimage.transform import resize
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import DataLoader
 from torchvision.transforms.functional import pad
 from torchvision import transforms
-from tqdm import tqdm
-from skimage import filters, exposure
-from copy import deepcopy
-import torchvision.transforms as T
-from pathlib import Path
 import os
-from torch.utils.data import Dataset, Subset
-from skimage.transform import resize
-import torch
-import re
-import time
-import pydicom
-from skimage import filters
-import gc
-import psutil
+from torch.utils.data import Dataset, Subset, WeightedRandomSampler
 import sys
 current_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_path)
@@ -144,7 +121,14 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 
     return train_data, val_data, test_data
 
-def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size, seed_value=0, resize=False):
+def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0, only_testing=False):
+    if only_testing:
+        data = torch.load(processed_dataset_path)
+        dataset = MammogramDataset(data)
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
+                            generator=torch.Generator(device=device))
+        return loader
+
     global mean, std
 
     if os.path.exists(data_name+'_training_data.pth'):
@@ -153,7 +137,7 @@ def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size
         val_data = torch.load(data_name+'_val_data.pth')
         test_data = torch.load(data_name+'_test_data.pth')
         mean, std = torch.load(data_name+'_mean_and_std.pth')
-        if weighted:
+        if weighted_sampling:
             computed_weights = torch.load(data_name+'_weights.pth')
         else:
             computed_weights = None
@@ -165,7 +149,7 @@ def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size
 
         # Compute weights for the training set
         targets = [label for _, label, _, _ in train_data]
-        computed_weights = compute_sample_weights(targets)
+        computed_weights = targets#compute_sample_weights(targets)
 
         mean, std = compute_target_statistics(train_data)
 
@@ -176,7 +160,7 @@ def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size
         torch.save([mean, std], data_name + '_mean_and_std.pth')
         torch.save(computed_weights, data_name + '_weights.pth')
 
-    if weighted:
+    if weighted_sampling:
         sample_weights = computed_weights
     else:
         sample_weights = None
@@ -195,22 +179,43 @@ def return_dataloaders(processed_dataset_path, transformed, weighted, batch_size
 
     # Load dataset from saved path
     print("Creating Dataset")
-    train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
-    val_dataset = MammogramDataset(val_data, transform=data_transforms)
-    test_dataset = MammogramDataset(test_data, transform=data_transforms)
+    targets = [label for _, label, _, _ in train_data]
+    if weighted_loss:
+        train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=targets)
+    else:
+        train_dataset = MammogramDataset(train_data, transform=data_transforms)
+    val_dataset = MammogramDataset(val_data)
+    test_dataset = MammogramDataset(test_data)
 
     # Create DataLoaders
     print("Creating DataLoaders for", device)
     if by_patient:
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
-                                  generator=torch.Generator(device=device))
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=targets,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
                                 generator=torch.Generator(device=device))
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
                                  generator=torch.Generator(device=device))
     else:
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                                  generator=torch.Generator(device=device))
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=targets,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                                      generator=torch.Generator(device=device))
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
                                 generator=torch.Generator(device=device))
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,

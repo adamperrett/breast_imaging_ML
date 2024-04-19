@@ -46,7 +46,7 @@ print("Reading data")
 raw = False  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False  # DEPRICATED: Put all patient images into a single data instance
-split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine it all
+split_CC_and_MLO = True  # Create a separate dataset for CC and MLO or combine it all
 average_score = False  # Do you want per image scores or average over all views
 remove_excluded = True  # Will the dataset filter out priors, if not only priors will be retained
 use_priors = False
@@ -70,9 +70,9 @@ if csf:
     # save_dir = '/mnt/bmh01-rds/assure/processed_data/'
     save_dir = '/mnt/iusers01/ct01/j16252at/scratch/breast_imaging_ML/processed_data'
     if use_priors:
-        save_name = 'procas'
-    else:
         save_name = 'priors'
+    else:
+        save_name = 'procas'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
     # csv_name = 'priors_per_image_reader_and_MAI.csv'
@@ -104,7 +104,7 @@ if raw:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_RAW'
     else:
-        image_directory = 'D:/priors_data/raw'
+        image_directory = 'Z:/PROCAS_ALL_RAW'
     procas_ids = procas_data['ASSURE_RAW_ID']
     selected_ids = selected_patients['ASSURE_RAW_ID']
     post_exclusion_ids = after_exclusion['ASSURE_RAW_ID']
@@ -113,7 +113,7 @@ else:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED'
     else:
-        image_directory = 'D:/priors_data/processed'
+        image_directory = 'Z:/PROCAS_ALL_PROCESSED'
     procas_ids = procas_data['ASSURE_PROCESSED_ANON_ID']
     selected_ids = selected_patients['ASSURE_PROCESSED_ANON_ID']
     post_exclusion_ids = after_exclusion['ASSURE_PROCESSED_ANON_ID']
@@ -356,7 +356,7 @@ def process_images(parent_directory, patient_dir, snapshot):
                                                               patient_dir, i_f))
                 else:
                     dataset_entries[process_type].append((p_i, target_value,
-                                                          patient_dir, i_f, v))
+                                                          patient_dir, i_f))
         else:
             dataset_entries[process_type].append((preprocessed_images, id_target_dict['L_MLO'][patient_dir[-5:]],
                                                   patient_dir, image_files))
