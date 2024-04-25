@@ -7,5 +7,5 @@ rm ../models/l_*
 rm ../models/r_*
 rm submit_optuna_regression_job.*
 echo ""
-echo "remember to stop the job submitting script"
+echo "     remember to stop the job submitting script"
 echo ""
