@@ -48,26 +48,20 @@ creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False  # DEPRICATED: Put all patient images into a single data instance
 split_CC_and_MLO = True  # Create a separate dataset for CC and MLO or combine it all
 average_score = False  # Do you want per image scores or average over all views
-remove_excluded = True  # Will the dataset filter out priors, if not only priors will be retained
+clean_with_pvas = True  # Will keep only patients in the clean pvas datasheet
+remove_priors = True  # Will the dataset filter out priors
 use_priors = False
 if use_priors:
-    remove_excluded = False
+    remove_priors = False
 
 vas_or_vbd = 'vbd'
 
 process_types = ['log']#, 'histo', 'clahe']  # only relevant to raw data
+priors_csv = 'PROCAS_matched_priors_v2.csv'
 
 csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
-    if vas_or_vbd == 'vas':
-        if use_priors:
-            csv_name = 'priors_per_image_reader_and_MAI.csv'
-        else:
-            csv_name = 'pvas_data_sheet.csv'
-    else:
-        csv_name = 'PROCAS_Volpara_dirty.csv'
-    # save_dir = '/mnt/bmh01-rds/assure/processed_data/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
     if use_priors:
         save_name = 'priors'
@@ -75,17 +69,16 @@ if csf:
         save_name = 'procas'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
-    # csv_name = 'priors_per_image_reader_and_MAI.csv'
-    if vas_or_vbd == 'vas':
-        # csv_name = 'priors_per_image_reader_and_MAI.csv'
-        if use_priors:
-            csv_name = 'priors_per_image_reader_and_MAI.csv'
-        else:
-            csv_name = 'pvas_data_sheet.csv'
-    else:
-        csv_name = 'PROCAS_Volpara_dirty.csv'
     save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
     save_name = 'local'
+if vas_or_vbd == 'vas':
+    if use_priors:
+        csv_name = priors_csv
+    else:
+        csv_name = 'pvas_data_sheet.csv'
+else:
+    csv_name = 'PROCAS_Volpara_dirty.csv'
+priors_data = pd.read_csv(os.path.join(csv_directory, priors_csv), sep=',')
 
 if by_patient:
     save_name += '_patients'
@@ -94,38 +87,39 @@ if creating_pvas_loader:
 save_name += '_'+vas_or_vbd
 
 if use_priors:
-    selected_patients = pd.read_csv(os.path.join(csv_directory, 'priors_per_image_reader_and_MAI.csv'), sep=',')
+    selected_patients = pd.read_csv(os.path.join(csv_directory, priors_csv), sep=',')
 else:
     selected_patients = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 procas_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
-after_exclusion = pd.read_csv(os.path.join(csv_directory, 'pvas_data_sheet.csv'), sep=',')
+clean_pvas_data = pd.read_csv(os.path.join(csv_directory, 'pvas_data_sheet.csv'), sep=',')
 
 if raw:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_RAW'
     else:
         image_directory = 'Z:/PROCAS_ALL_RAW'
-    procas_ids = procas_data['ASSURE_RAW_ID']
-    selected_ids = selected_patients['ASSURE_RAW_ID']
-    post_exclusion_ids = after_exclusion['ASSURE_RAW_ID']
+    image_type_id = 'ASSURE_RAW_ID'
     save_name += '_raw'
 else:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED'
     else:
         image_directory = 'Z:/PROCAS_ALL_PROCESSED'
-    procas_ids = procas_data['ASSURE_PROCESSED_ANON_ID']
-    selected_ids = selected_patients['ASSURE_PROCESSED_ANON_ID']
-    post_exclusion_ids = after_exclusion['ASSURE_PROCESSED_ANON_ID']
+    image_type_id = 'ASSURE_PROCESSED_ANON_ID'
     save_name += '_processed'
+procas_ids = procas_data[image_type_id]
+selected_ids = selected_patients[image_type_id]
+clean_pvas_ids = clean_pvas_data[image_type_id]
+priors_ids = priors_data[image_type_id]
 
 def format_id(id):
     # Ensure the id is an integer and format it
     return "{:05}".format(int(id))
 
 # Drop NaN values, then apply the formatting function
-post_exclusion_ids = set(post_exclusion_ids.dropna().apply(format_id).values)
+clean_pvas_ids = set(clean_pvas_ids.dropna().apply(format_id).values)
 selected_ids = set(selected_ids.dropna().apply(format_id).values)
+priors_ids = set(priors_ids.dropna().apply(format_id).values)
 
 regression_target_data = {}
 if vas_or_vbd == 'vas':
@@ -168,9 +162,12 @@ for image_type, ids in id_target_dict.items():
     common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
 
 # Additional filtering based on 'filter_priors'
-if remove_excluded:
-    # If filtering exclusion, keep shared keys in 'after_exclusion' from 'common_ids'
-    common_ids &= post_exclusion_ids
+if clean_with_pvas:
+    # If filtering exclusion, keep shared keys in 'clean_pvas_data' from 'common_ids'
+    common_ids &= clean_pvas_ids
+# Additional filtering based on priors
+if remove_priors:
+    common_ids -= priors_ids
 
 # Apply the final set of 'common_ids' to filter 'id_target_dict'
 for image_type in id_target_dict:

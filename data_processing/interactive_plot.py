@@ -30,7 +30,9 @@ if truth_labels == 'priors':
 valid_data = pd.DataFrame()
 
 # add something to plot it as error vs actual + stdev bars instead
-plot_error = False
+plotting_type = 'birads'
+birad_intervals = [3.5, 7.5, 15.5]
+birad_categories = [1, 2, 3, 4]
 
 columns_to_convert = ['ave_MAI_VAS_PRO', 'ave_MAI_VAS_RAW']
 # Convert each column to numeric
@@ -69,7 +71,7 @@ def update_plot():
     aveerr = np.mean(error)
     abserr = np.mean(np.abs(error))
     # Create a new Seaborn JointPlot
-    if plot_error:
+    if plotting_type == 'error':
         interval = stderr * 1.95
         jointplot = sns.jointplot(x=df[selected_x], y=error, kind="scatter")
         # Add the MSE and R2 to the plot title
@@ -91,6 +93,49 @@ def update_plot():
                       [-interval, -interval],
                       linestyle='--', color='blue')
         ax_joint.set_ylabel('Error')
+    elif plotting_type == 'birads':
+        if 'VBD' not in selected_x or 'VBD' not in selected_y:
+            print("The BIRADS plotting is setup to expect columns beginning VBD, the average. Please try again.")
+        else:
+            columns_to_max_x = [selected_x.replace('VBD', suffix) for suffix in
+                                ['vbd_L_CC', 'vbd_R_CC', 'vbd_L_MLO', 'vbd_R_MLO']]
+            columns_to_max_y = [selected_y.replace('VBD', suffix) for suffix in
+                                ['vbd_L_CC', 'vbd_R_CC', 'vbd_L_MLO', 'vbd_R_MLO']]
+
+            df['max_x'] = df[columns_to_max_x].dropna().max(axis=1)
+            df['max_y'] = df[columns_to_max_y].dropna().max(axis=1)
+
+            df['cat_x'] = pd.cut(df['max_x'], bins=[-np.inf] + birad_intervals + [np.inf], labels=birad_categories)
+            df['cat_y'] = pd.cut(df['max_y'], bins=[-np.inf] + birad_intervals + [np.inf], labels=birad_categories)
+
+            fig_sp, axes = plt.subplots(4, 4, figsize=(16, 16))
+
+            # Iterate over each category combination and plot
+            for i, cat_x in enumerate(birad_categories):
+                for j, cat_y in enumerate(birad_categories):
+                    ax = axes[i, j]
+                    # Filter data for the current category combination
+                    subset = df[(df['cat_x'] == cat_x) & (df['cat_y'] == cat_y)]
+                    if not len(subset):
+                        continue
+
+                    # Scatter plot for the current categories
+                    sns.scatterplot(x='max_x', y='max_y', data=subset, ax=ax, color='blue', alpha=0.6)
+
+                    # Add x=y line
+                    min_val = min(subset['max_x'].min(), subset['max_y'].min())
+                    max_val = max(subset['max_x'].max(), subset['max_y'].max())
+                    ax.plot([min_val, max_val], [min_val, max_val], 'r--')
+
+                    # Set plot limits
+                    ax.set_xlim(min_val, max_val)
+                    ax.set_ylim(min_val, max_val)
+
+                    # Optional: Set titles or labels if desired
+                    ax.set_title(f'{len(subset)} in BIRADS X: {cat_x}, BIRADS Y: {cat_y}')
+                    # ax.set_xlabel('Max X')
+                    # ax.set_ylabel('Max Y')
+
     else:
         jointplot = sns.jointplot(x=df[selected_x], y=df[selected_y], kind="scatter")
         # Add the MSE and R2 to the plot title
@@ -110,28 +155,39 @@ def update_plot():
     # Get the current size of the canvas in pixels
     width, height = canvas_widget.winfo_width(), canvas_widget.winfo_height()
 
-    # Convert canvas size from pixels to inches for Matplotlib
-    dpi = fig.get_dpi()
-    fig_width = width / dpi
-    fig_height = height / dpi
+    if plotting_type == 'birads':
+        dpi = fig_sp.get_dpi()
+        fig_sp.set_size_inches(width / dpi, height / dpi)
+        fig_sp.set_dpi(dpi)
 
-    # Set the size of the new figure to match the canvas size
-    jointplot.fig.set_size_inches(fig_width, fig_height)
-    jointplot.fig.set_dpi(dpi)
-    
-    jointplot.figure.canvas.mpl_connect('button_press_event', onclick)
+        # Draw and update the canvas
+        canvas.figure = fig_sp
+        canvas.draw_idle()
 
-    # Update the Tkinter canvas with the new figure
-    canvas.figure = jointplot.fig
-    canvas.draw_idle()
+        # Optional: connect button press event
+        fig_sp.canvas.mpl_connect('button_press_event', onclick)
+    else:
+        dpi = fig.get_dpi()
+        fig_width = width / dpi
+        fig_height = height / dpi
+
+        # Set the size of the new figure to match the canvas size
+        jointplot.fig.set_size_inches(fig_width, fig_height)
+        jointplot.fig.set_dpi(dpi)
+
+        jointplot.figure.canvas.mpl_connect('button_press_event', onclick)
+
+        # Update the Tkinter canvas with the new figure
+        canvas.figure = jointplot.fig
+        canvas.draw_idle()
 
     
 def getPointsNearest(valid_data, xdata, ydata, x_values, y_values):
     points = pd.DataFrame()
-    count = 1
+    count = 0.01
     while points.empty:
         points = valid_data.loc[((x_values >= xdata - count) & (x_values <= xdata + count)) & ((y_values >= ydata - count) & (y_values <= ydata + count))]
-        count = count * 1.5
+        count = count * 1.01
     return points
 
 def onclick(event):
@@ -148,12 +204,17 @@ def onclick(event):
     
     valid_data = df[[selected_x, selected_y]].dropna()
 
-    if plot_error:
+    if plotting_type == 'error':
+        x_values = df[selected_x]
         y_values = df[selected_x] - df[selected_y]
+    elif plotting_type == 'birads':
+        x_values = df['max_x']
+        y_values = df['max_y']
     else:
+        x_values = df[selected_x]
         y_values = df[selected_y]
 
-    foundPoints = getPointsNearest(valid_data, event.xdata, event.ydata, df[selected_x], y_values)
+    foundPoints = getPointsNearest(valid_data, event.xdata, event.ydata, x_values, y_values)
 
     print(foundPoints)
     fullFoundPoints = df.iloc[foundPoints.index.values].drop_duplicates(subset=['ASSURE_PROCESSED_ANON_ID'])
