@@ -47,10 +47,10 @@ def round_to_(x, sig_fig=2):
 
 def regression_training(trial):
     if on_CSF and optuna_optimisation:
-        lr = trial.suggest_float('lr', 1e-6, 2e-4, log=True)
+        lr = trial.suggest_float('lr', 3e-6, 1e-4, log=True)
         op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-        batch_size = trial.suggest_int('batch_size', 5, 29)
-        dropout = trial.suggest_float('dropout', 0, 0.6)
+        batch_size = trial.suggest_int('batch_size', 10, 28)
+        dropout = trial.suggest_float('dropout', 0, 0.7)
         arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
         replicate = trial.suggest_categorical('replicate', [0, 1])
