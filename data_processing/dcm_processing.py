@@ -46,7 +46,7 @@ print("Reading data")
 raw = False  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False  # DEPRICATED: Put all patient images into a single data instance
-split_CC_and_MLO = True  # Create a separate dataset for CC and MLO or combine it all
+split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine it all
 average_score = False  # Do you want per image scores or average over all views
 clean_with_pvas = True  # Will keep only patients in the clean pvas datasheet
 remove_priors = True  # Will the dataset filter out priors
@@ -54,7 +54,7 @@ use_priors = False
 if use_priors:
     remove_priors = False
 
-vas_or_vbd = 'vbd'
+vas_or_vbd = 'vas'
 
 process_types = ['log']#, 'histo', 'clahe']  # only relevant to raw data
 priors_csv = 'PROCAS_matched_priors_v2.csv'
@@ -123,7 +123,7 @@ priors_ids = set(priors_ids.dropna().apply(format_id).values)
 
 regression_target_data = {}
 if vas_or_vbd == 'vas':
-    if average_score:
+    if average_score or use_priors:
         regression_target_data['L_MLO'] = procas_data['VASCombinedAvDensity']
         regression_target_data['L_CC'] = procas_data['VASCombinedAvDensity']
         regression_target_data['R_MLO'] = procas_data['VASCombinedAvDensity']
@@ -133,6 +133,14 @@ if vas_or_vbd == 'vas':
         regression_target_data['L_CC'] = procas_data['LCC']
         regression_target_data['R_MLO'] = procas_data['RMLO']
         regression_target_data['R_CC'] = procas_data['RCC']
+        regression_target_data['L_MLO-1'] = procas_data['LMLO-1']
+        regression_target_data['L_CC-1'] = procas_data['LCC-1']
+        regression_target_data['R_MLO-1'] = procas_data['RMLO-1']
+        regression_target_data['R_CC-1'] = procas_data['RCC-1']
+        regression_target_data['L_MLO-2'] = procas_data['LMLO-2']
+        regression_target_data['L_CC-2'] = procas_data['LCC-2']
+        regression_target_data['R_MLO-2'] = procas_data['RMLO-2']
+        regression_target_data['R_CC-2'] = procas_data['RCC-2']
 else:
     if average_score:
         save_name += '_average'
@@ -344,17 +352,26 @@ def process_images(parent_directory, patient_dir, snapshot):
         if not by_patient:
             for p_i, i_f, v, s in zip(preprocessed_images, image_files, all_views, all_sides):
                 target_value = id_target_dict[s+'_'+v][patient_dir[-5:]]
+                target_value_r1 = id_target_dict[s + '_' + v + '-1'][patient_dir[-5:]]
+                target_value_r2 = id_target_dict[s + '_' + v + '-2'][patient_dir[-5:]]
                 if split_CC_and_MLO:
                     if v == 'CC':
                         dataset_entries[process_type+'_CC'].append((p_i, target_value,
-                                                              patient_dir, i_f))
+                                                                    target_value_r1,
+                                                                    target_value_r2,
+                                                                    patient_dir, i_f))
                     else:
                         dataset_entries[process_type+'_MLO'].append((p_i, target_value,
-                                                              patient_dir, i_f))
+                                                                     target_value_r1,
+                                                                     target_value_r2,
+                                                                     patient_dir, i_f))
                 else:
                     dataset_entries[process_type].append((p_i, target_value,
+                                                          target_value_r1,
+                                                          target_value_r2,
                                                           patient_dir, i_f))
         else:
+            #### DEPRICATED ~~~~
             dataset_entries[process_type].append((preprocessed_images, id_target_dict['L_MLO'][patient_dir[-5:]],
                                                   patient_dir, image_files))
         snapshot['del'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()

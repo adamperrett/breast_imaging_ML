@@ -48,6 +48,36 @@ class MammogramDataset(Dataset):
         else:
             return image, label, (label*0)+1, directory, views
 
+
+class MammogramThresholdedDataset(Dataset):
+    def __init__(self, dataset, transform=None, n=0, weights=None, rand_select=True, no_process=False, threshold=100):
+        self.dataset = []
+        for image, label, r1, r2, directory, views in dataset:
+            if abs(r1 - r2) <= threshold:
+                self.dataset.append(image, label, directory, views)
+        self.transform = transform
+        self.n = n
+        self.weights = weights
+        self.rand_select = rand_select
+        self.no_process = no_process
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        if self.no_process:
+            return self.dataset[idx]
+        image, label, directory, views = self.dataset[idx]
+
+        if self.transform:
+            transformed_image = self.transform(image.unsqueeze(0)).squeeze(0)
+            image = transformed_image
+
+        if self.weights is not None:
+            return image, label, self.weights[idx], directory, views
+        else:
+            return image, label, (label*0)+1, directory, views
+
 def custom_collate(batch):
     # Separate images and labels
     images, labels, weights, dir, view = zip(*batch)
