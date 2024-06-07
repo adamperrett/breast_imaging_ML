@@ -1,9 +1,15 @@
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import os
 
 # Load your data
-df = pd.read_csv('../csv_data/outlier_processing.csv')
+csf = True
+if csf:
+    csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
+else:
+    csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
+df = pd.read_csv(os.path.join(csv_directory, 'outlier_processing.csv'))
 
 views = ['L', 'R']
 positions = ['CC', 'MLO']
@@ -18,7 +24,7 @@ def save_csv(df, method, threshold):
     for view in views:
         for pos in positions:
             df_combined[f'{view}{pos}'] = df[[f'{view}{pos}-1', f'{view}{pos}-2']].mean(axis=1)
-    df_combined.to_csv('../csv_data/'+filename, index=False)
+    df_combined.to_csv(os.path.join(csv_directory, filename), index=False)
 
 
 for threshold in tqdm([2, 6, 10, 14, 18, 22, 26, 30]):

@@ -58,7 +58,7 @@ vas_or_vbd = 'vas'
 
 priors_csv = 'PROCAS_matched_priors_v2.csv'
 
-csf = False
+csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
@@ -305,6 +305,6 @@ df_meta_data.rename(columns={'index': 'ASSURE_PROCESSED_ANON_ID'}, inplace=True)
 
 merged_df = pd.merge(df_meta_data, procas_data, how='left', on='ASSURE_PROCESSED_ANON_ID')
 
-merged_df.to_csv('../csv_data/outlier_processing.csv', index=False)
+merged_df.to_csv(os.path.join(csv_directory, 'outlier_processing.csv'), index=False)
 
 print("Done!")
