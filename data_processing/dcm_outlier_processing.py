@@ -160,30 +160,37 @@ else:
         regression_target_data['R_CC'] = procas_data['vbd_R_CC']
 
 # save patient_ids which have a regression target
+# id_target_dict = {}
+# for image_type in regression_target_data:
+#     id_target_dict[image_type] = {}
+#     for id, target in zip(procas_ids, regression_target_data[image_type]):
+#         if not np.isnan(id) and not np.isnan(target) and target >= 0:
+#             if "{:05}".format(int(id)) in selected_ids:
+#                 id_target_dict[image_type]["{:05}".format(int(id))] = target
 id_target_dict = {}
-for image_type in ['L_MLO', 'R_MLO', 'L_CC', 'R_CC']:
+for image_type in regression_target_data:
     id_target_dict[image_type] = {}
     for id, target in zip(procas_ids, regression_target_data[image_type]):
-        if not np.isnan(id) and not np.isnan(target) and target >= 0:
-            if "{:05}".format(int(id)) in selected_ids:
-                id_target_dict[image_type]["{:05}".format(int(id))] = target
+        if "{:05}".format(int(id)) in selected_ids:
+            id_target_dict[image_type]["{:05}".format(int(id))] = target
 
 # Find common IDs across all image types
-common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
-for image_type, ids in id_target_dict.items():
-    common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
-
-# Additional filtering based on 'filter_priors'
-if clean_with_pvas:
-    # If filtering exclusion, keep shared keys in 'clean_pvas_data' from 'common_ids'
-    common_ids &= clean_pvas_ids
-# Additional filtering based on priors
-if remove_priors:
-    common_ids -= priors_ids
-
-# Apply the final set of 'common_ids' to filter 'id_target_dict'
-for image_type in id_target_dict:
-    id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
+# common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
+# for image_type, ids in id_target_dict.items():
+#     if image_type in ['L_MLO', 'R_MLO', 'L_CC', 'R_CC']:
+#         common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
+#
+# # Additional filtering based on 'filter_priors'
+# if clean_with_pvas:
+#     # If filtering exclusion, keep shared keys in 'clean_pvas_data' from 'common_ids'
+#     common_ids &= clean_pvas_ids
+# # Additional filtering based on priors
+# if remove_priors:
+#     common_ids -= priors_ids
+#
+# # Apply the final set of 'common_ids' to filter 'id_target_dict'
+# for image_type in id_target_dict:
+#     id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
 
 # processed_dataset_save_location = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
 processed_dataset_save_location = os.path.join(save_dir, save_name, '.pth')
