@@ -125,36 +125,36 @@ priors_ids = set(priors_ids.dropna().apply(format_id).values)
 regression_target_data = {}
 if vas_or_vbd == 'vas':
     if average_score or use_priors:
-        regression_target_data['L_MLO'] = procas_data['VASCombinedAvDensity']
-        regression_target_data['L_CC'] = procas_data['VASCombinedAvDensity']
-        regression_target_data['R_MLO'] = procas_data['VASCombinedAvDensity']
-        regression_target_data['R_CC'] = procas_data['VASCombinedAvDensity']
+        regression_target_data['LMLO'] = procas_data['VASCombinedAvDensity']
+        regression_target_data['LCC'] = procas_data['VASCombinedAvDensity']
+        regression_target_data['RMLO'] = procas_data['VASCombinedAvDensity']
+        regression_target_data['RCC'] = procas_data['VASCombinedAvDensity']
     else:
-        regression_target_data['L_MLO'] = procas_data['LMLO']
-        regression_target_data['L_CC'] = procas_data['LCC']
-        regression_target_data['R_MLO'] = procas_data['RMLO']
-        regression_target_data['R_CC'] = procas_data['RCC']
-        regression_target_data['L_MLO-1'] = procas_data['LMLO-1']
-        regression_target_data['L_CC-1'] = procas_data['LCC-1']
-        regression_target_data['R_MLO-1'] = procas_data['RMLO-1']
-        regression_target_data['R_CC-1'] = procas_data['RCC-1']
-        regression_target_data['L_MLO-2'] = procas_data['LMLO-2']
-        regression_target_data['L_CC-2'] = procas_data['LCC-2']
-        regression_target_data['R_MLO-2'] = procas_data['RMLO-2']
-        regression_target_data['R_CC-2'] = procas_data['RCC-2']
+        regression_target_data['LMLO'] = procas_data['LMLO']
+        regression_target_data['LCC'] = procas_data['LCC']
+        regression_target_data['RMLO'] = procas_data['RMLO']
+        regression_target_data['RCC'] = procas_data['RCC']
+        regression_target_data['LMLO-1'] = procas_data['LMLO-1']
+        regression_target_data['LCC-1'] = procas_data['LCC-1']
+        regression_target_data['RMLO-1'] = procas_data['RMLO-1']
+        regression_target_data['RCC-1'] = procas_data['RCC-1']
+        regression_target_data['LMLO-2'] = procas_data['LMLO-2']
+        regression_target_data['LCC-2'] = procas_data['LCC-2']
+        regression_target_data['RMLO-2'] = procas_data['RMLO-2']
+        regression_target_data['RCC-2'] = procas_data['RCC-2']
 else:
     if average_score:
         save_name += '_average'
-        regression_target_data['L_MLO'] = procas_data['VBD']
-        regression_target_data['L_CC'] = procas_data['VBD']
-        regression_target_data['R_MLO'] = procas_data['VBD']
-        regression_target_data['R_CC'] = procas_data['VBD']
+        regression_target_data['LMLO'] = procas_data['VBD']
+        regression_target_data['LCC'] = procas_data['VBD']
+        regression_target_data['RMLO'] = procas_data['VBD']
+        regression_target_data['RCC'] = procas_data['VBD']
     else:
         save_name += '_per_im'
-        regression_target_data['L_MLO'] = procas_data['vbd_L_MLO']
-        regression_target_data['L_CC'] = procas_data['vbd_L_CC']
-        regression_target_data['R_MLO'] = procas_data['vbd_R_MLO']
-        regression_target_data['R_CC'] = procas_data['vbd_R_CC']
+        regression_target_data['LMLO'] = procas_data['vbd_L_MLO']
+        regression_target_data['LCC'] = procas_data['vbd_L_CC']
+        regression_target_data['RMLO'] = procas_data['vbd_R_MLO']
+        regression_target_data['RCC'] = procas_data['vbd_R_CC']
 
 # save patient_ids which have a regression target
 id_target_dict = {}
@@ -182,26 +182,47 @@ if remove_priors:
 for image_type in id_target_dict:
     id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
 
-def filter_with_comparative_difference(patient, target_dict, thresholds, view=''):
-    view_type = ['MLO-1', 'CC-1', 'MLO-2', 'CC-2']
-    values = {view+'_'+v: target_dict[view+'_'+v][patient] for v in view_type}
+def calculate_the_median_differences(values):
     diffs = {}
-    # outlier = {th: {} for th in thresholds}
+    sq_diffs = {}
     for view_1 in values:
         diff = 0
+        sq_diff = 0
         for view_2 in values:
             if view_1 != view_2:
                 diff += abs(values[view_1] - values[view_2])
+                sq_diff += np.square(values[view_1] - values[view_2])
         diffs[view_1] = diff
+        sq_diffs[view_1] = sq_diff
     average_diff = np.mean(list(diffs.values()))
-    median_diff = np.sum(list(diffs.values())) - np.min(list(diffs.values())) - np.max(list(diffs.values()))
+    median_diff = (np.sum(list(diffs.values()))
+                   - np.min(list(diffs.values()))
+                   - np.max(list(diffs.values()))) / 2
+    median_dist = {key: abs(value - median_diff) for key, value in diffs.items()}
+    average_sq_diff = np.mean(list(sq_diffs.values()))
+    median_sq_diff = (np.sum(list(sq_diffs.values()))
+                      - np.min(list(sq_diffs.values()))
+                      - np.max(list(sq_diffs.values()))) / 2
+    median_sq_dist = {key: abs(value - median_sq_diff) for key, value in sq_diffs.items()}
+    return diffs, average_diff, median_diff, median_dist, sq_diffs, average_sq_diff, median_sq_diff, median_sq_dist
+
+def filter_with_comparative_difference(patient, target_dict, thresholds, view=''):
+    view_type = ['MLO-1', 'CC-1', 'MLO-2', 'CC-2']
+    values = {view+v: target_dict[view+v][patient] for v in view_type}
+    diffs = {}
+    sq_diffs = {}
+    # outlier = {th: {} for th in thresholds}
+    diffs, average_diff, median_diff, median_dist, sq_diffs, average_sq_diff, median_sq_diff, median_sq_dist = \
+        calculate_the_median_differences(values)
+    _, _, _, m_median_dist, _, _, _, m_median_sq_dist = \
+        calculate_the_median_differences(median_dist)
     # for d in diffs:
     #     for th in thresholds:
     #         if abs(diffs[d] - average_diff) > th:
     #             outlier[th][d] = 1
     #         else:
     #             outlier[th][d] = 0
-    return diffs, average_diff, median_diff/2
+    return diffs, average_diff, median_diff, median_dist, m_median_dist, sq_diffs, average_sq_diff, median_sq_diff, median_sq_dist
 
 def volpara_metrics(four_values):
     dic_values = list(four_values.values())
@@ -217,7 +238,7 @@ def volpara_metrics(four_values):
 
 def filter_with_sum_of_squared_diff(patient, target_dict, thresholds, view=''):
     view_type = ['MLO-1', 'CC-1', 'MLO-2', 'CC-2']
-    values = {view+'_'+v: target_dict[view+'_'+v][patient] for v in view_type}
+    values = {view+v: target_dict[view+v][patient] for v in view_type}
     diffs = {v: 0 for v in values}
     # outlier = {th: {} for th in thresholds}
     for view_1 in values:
@@ -231,33 +252,47 @@ def filter_with_sum_of_squared_diff(patient, target_dict, thresholds, view=''):
     # outlier_by_th =
     return diffs, median, threshold, max_ssqd
 
-views = ['L_MLO', 'R_MLO', 'L_CC', 'R_CC']
-filter_thresholds = [5, 10, 15]
+views = ['LMLO', 'RMLO', 'LCC', 'RCC']
+filter_thresholds = [i+1 for i in range(0, 30, 2)]
 # filtered_by_comparative_diff = {ft: id_target_dict for ft in filter_thresholds}
 # outliers_by_comparative_diff = {ft: [] for ft in filter_thresholds}
 patient_meta_data = {}
-for patient in tqdm(id_target_dict['L_CC']):
+for patient in tqdm(id_target_dict['LCC']):
     meta_data = {}
     for view_type in ['L', 'R']:
-        abs_diffs, ave_diff, median_diff = filter_with_comparative_difference(patient,
-                                                                              id_target_dict,
-                                                                              filter_thresholds,
-                                                                              view_type)
-        ssqd, median_ssqd, threshold, max_ssqd = filter_with_sum_of_squared_diff(patient,
-                                                                            id_target_dict,
-                                                                            filter_thresholds,
-                                                                            view_type)
+        abs_diffs, ave_diff, median_diff, median_dist, m_median_dist, \
+        sq_diffs, ave_sq_diff, median_sq_diff, median_sq_dist = \
+            filter_with_comparative_difference(
+                patient,
+                id_target_dict,
+                filter_thresholds,
+                view_type)
+        ssqd, median_ssqd, threshold, max_ssqd = \
+            filter_with_sum_of_squared_diff(
+                patient,
+                id_target_dict,
+                filter_thresholds,
+                view_type)
         meta_data[view_type+'_ave_diff'] = ave_diff
         meta_data[view_type+'_median_diff'] = median_diff
+        meta_data[view_type+'_ave_sq_diff'] = ave_sq_diff
+        meta_data[view_type+'_median_sq_diff'] = median_sq_diff
         for view in abs_diffs:
             meta_data[view+'_abs_diff'] = abs_diffs[view]
-        for view in abs_diffs:
-            meta_data[view+'_median_dist'] = abs(abs_diffs[view] - median_diff)
+        for view in median_dist:
+            meta_data[view+'_median_dist'] = median_dist[view]
+        for view in m_median_dist:
+            meta_data[view+'_m_median_dist'] = m_median_dist[view]
+        for view in sq_diffs:
+            meta_data[view+'_abs_sq_diff'] = sq_diffs[view]
+        for view in median_sq_dist:
+            meta_data[view+'_median_sq_dist'] = median_sq_dist[view]
         meta_data[view_type+'_median_ssqd'] = median_ssqd
         meta_data[view_type+'_threshold'] = threshold
         meta_data[view_type+'_max_ssqd'] = max_ssqd
         for view in ssqd:
-            meta_data[view+'_ssqd_'] = ssqd[view]
+            meta_data[view+'_ssqd'] = ssqd[view]
+
     patient_meta_data[patient] = meta_data
 
 df_meta_data = pd.DataFrame.from_dict(patient_meta_data, orient='index')
@@ -270,6 +305,6 @@ df_meta_data.rename(columns={'index': 'ASSURE_PROCESSED_ANON_ID'}, inplace=True)
 
 merged_df = pd.merge(df_meta_data, procas_data, how='left', on='ASSURE_PROCESSED_ANON_ID')
 
-merged_df.to_csv('outlier_processing.csv', index=False)
+merged_df.to_csv('../csv_data/outlier_processing.csv', index=False)
 
 print("Done!")

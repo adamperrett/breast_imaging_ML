@@ -38,16 +38,16 @@ if on_CSF:
     -weights 2
     -transformed 2
     '''
-    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
+    # working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     if optuna_optimisation:
         base_name = 'volpara_weight'
         n_images = 0
         # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
-        processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
-        # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
-        data_name = 'procas_pvas_vbd_processed_per_im_base'
-        # data_name = 'priors_pvas_vbd_processed_per_im_base'
+        # processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
+        processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
+        # data_name = 'procas_pvas_vbd_processed_per_im_base'
+        data_name = 'priors_pvas_vbd_processed_per_im_base'
         if split_CC_and_MLO:
             base_name += CC_or_MLO
             if CC_or_MLO == 'CC':
