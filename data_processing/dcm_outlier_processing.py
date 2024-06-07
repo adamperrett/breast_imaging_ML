@@ -161,7 +161,7 @@ else:
 
 # save patient_ids which have a regression target
 id_target_dict = {}
-for image_type in regression_target_data:
+for image_type in ['LMLO', 'RMLO', 'LCC', 'RCC']:
     id_target_dict[image_type] = {}
     for id, target in zip(procas_ids, regression_target_data[image_type]):
         if not np.isnan(id) and not np.isnan(target) and target >= 0:
