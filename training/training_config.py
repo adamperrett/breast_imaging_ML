@@ -44,8 +44,8 @@ if on_CSF:
         base_name = 'vas_baseline'
         n_images = 0
         # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
-        # processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
-        processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
+        processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
+        # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
         # data_name = 'procas_pvas_vbd_processed_per_im_base'
         # data_name = 'priors_pvas_vbd_processed_per_im_base'
         data_name = 'procas_pvas_vas_raw_base'
