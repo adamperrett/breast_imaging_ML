@@ -3,7 +3,7 @@ import sys
 
 num_epochs = 600
 patience = 5
-improving_loss_or_r2 = 'r2'
+improving_loss_or_r2 = 'loss'
 lr = 0.003
 momentum = 0.9
 # batch_size = 128

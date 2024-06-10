@@ -37,7 +37,7 @@ class MammogramDataset(Dataset):
     def __getitem__(self, idx):
         if self.no_process:
             return self.dataset[idx]
-        image, label, directory, views = self.dataset[idx]
+        image, label, r1, r2, directory, views = self.dataset[idx]
 
         if self.transform:
             transformed_image = self.transform(image.unsqueeze(0)).squeeze(0)
@@ -178,7 +178,7 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
         train_data, val_data, test_data = split_by_patient(processed_dataset_path, train_ratio, val_ratio, seed_value)
 
         # Compute weights for the training set
-        targets = [label for _, label, _, _ in train_data]
+        targets = [label for _, label, _, _, _, _ in train_data]
         computed_weights = targets#compute_sample_weights(targets)
 
         mean, std = compute_target_statistics(train_data)
