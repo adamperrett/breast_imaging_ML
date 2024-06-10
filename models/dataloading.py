@@ -161,16 +161,14 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
 
     global mean, std
 
-    if os.path.exists(data_name+'_training_data.pth'):
+    data_file_path_and_name = processed_dataset_path[:-4]
+    save_path = data_file_path_and_name + '_data.pth'
+    if os.path.exists(save_path):
         print("Loading data")
-        train_data = torch.load(data_name+'_training_data.pth')
-        val_data = torch.load(data_name+'_val_data.pth')
-        test_data = torch.load(data_name+'_test_data.pth')
-        mean, std = torch.load(data_name+'_mean_and_std.pth')
-        if weighted_sampling:
-            computed_weights = torch.load(data_name+'_weights.pth')
-        else:
-            computed_weights = None
+        data = torch.load(save_path)
+        train_data, val_data, test_data = data['train'], data['val'], data['test']
+        mean, std = data['mean'], data['std']
+        computed_weights = data['weights'] if weighted_sampling else None
     else:
         print("Processing data for the first time")
         # Splitting the dataset
@@ -179,16 +177,20 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
 
         # Compute weights for the training set
         targets = [label for _, label, _, _, _, _ in train_data]
-        computed_weights = targets#compute_sample_weights(targets)
+        computed_weights = targets  # compute_sample_weights(targets)
 
         mean, std = compute_target_statistics(targets)
 
         print("Saving data")
-        torch.save(train_data, data_name + '_training_data.pth')
-        torch.save(val_data, data_name + '_val_data.pth')
-        torch.save(test_data, data_name + '_test_data.pth')
-        torch.save([mean, std], data_name + '_mean_and_std.pth')
-        torch.save(computed_weights, data_name + '_weights.pth')
+        torch.save({
+            'train': train_data,
+            'val': val_data,
+            'test': test_data,
+            'mean': mean,
+            'std': std,
+            'weights': computed_weights
+        },
+            save_path)
 
     if weighted_sampling:
         sample_weights = computed_weights
@@ -204,9 +206,8 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
     else:
         data_transforms = None
 
-    # Load dataset from saved path
+    # Create Dataset
     print("Creating Dataset")
-    # targets = [label for _, label, _, _ in train_data]
     train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
     val_dataset = MammogramDataset(val_data)
     test_dataset = MammogramDataset(test_data)

@@ -38,8 +38,8 @@ if on_CSF:
     -weights 2
     -transformed 2
     '''
-    # working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
+    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     if optuna_optimisation:
         base_name = 'vas_baseline'
         n_images = 0
