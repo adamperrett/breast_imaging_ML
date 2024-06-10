@@ -61,8 +61,8 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
     else:
         return epoch_loss, all_targets, all_predictions, r2
 
-def compute_target_statistics(dataset):
-    labels = [label for _, label, _, _ in dataset]
+def compute_target_statistics(labels):
+    # labels = [label for _, label, _, _, _, _ in dataset]
     mean = np.mean(labels)
     std = np.std(labels)
     return mean, std

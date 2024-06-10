@@ -181,7 +181,7 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
         targets = [label for _, label, _, _, _, _ in train_data]
         computed_weights = targets#compute_sample_weights(targets)
 
-        mean, std = compute_target_statistics(train_data)
+        mean, std = compute_target_statistics(targets)
 
         print("Saving data")
         torch.save(train_data, data_name + '_training_data.pth')
