@@ -126,7 +126,7 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
     print("Grouping entries by the unique key")
     groups = {}
     for entry in tqdm(dataset):
-        key = entry[2]  # The third entry
+        key = entry[-2]  # The second last entry where the patient id is
         if key not in groups:
             groups[key] = []
         groups[key].append(entry)
@@ -206,11 +206,8 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
 
     # Load dataset from saved path
     print("Creating Dataset")
-    targets = [label for _, label, _, _ in train_data]
-    if weighted_loss:
-        train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=targets)
-    else:
-        train_dataset = MammogramDataset(train_data, transform=data_transforms)
+    # targets = [label for _, label, _, _ in train_data]
+    train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
     val_dataset = MammogramDataset(val_data)
     test_dataset = MammogramDataset(test_data)
 
@@ -220,7 +217,7 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
         if weighted_sampling:
             train_loader = DataLoader(train_dataset,
                                       batch_size=batch_size,
-                                      sampler=WeightedRandomSampler(weights=targets,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
                                                                     num_samples=len(train_dataset),
                                                                     replacement=True),
                                       collate_fn=custom_collate,
@@ -236,7 +233,7 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
         if weighted_sampling:
             train_loader = DataLoader(train_dataset,
                                       batch_size=batch_size,
-                                      sampler=WeightedRandomSampler(weights=targets,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
                                                                     num_samples=len(train_dataset),
                                                                     replacement=True),
                                       generator=torch.Generator(device=device))
