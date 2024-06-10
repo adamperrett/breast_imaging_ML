@@ -161,7 +161,7 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
 
     global mean, std
 
-    data_file_path_and_name = processed_dataset_path[:-4]
+    data_file_path_and_name = os.path.join(working_dir, data_name)
     save_path = data_file_path_and_name + '_data.pth'
     if os.path.exists(save_path):
         print("Loading data")
