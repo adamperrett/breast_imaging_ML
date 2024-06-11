@@ -52,7 +52,7 @@ class Pvas_Model(nn.Module):
         self.L = 512
         self.split = split
         if not split:
-            self.D += 1
+            self.D += 2
 
         ## Standard regressor
         self.regressor = nn.Sequential(
@@ -138,7 +138,7 @@ class ResNetTransformer(nn.Module):
         self.L = 512
         self.split = split
         if not split:
-            self.D += 1
+            self.D += 2
 
         # Modify the first layer to accept single-channel (grayscale) images
         # self.resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)

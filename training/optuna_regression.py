@@ -126,13 +126,13 @@ def regression_training(trial):
             # Zero the parameter gradients
             optimizer.zero_grad()
 
-            is_it_mlo = torch.zeros_like(targets).float()
+            is_it_mlo = torch.zeros_like(torch.hstack([targets, targets])).float()
             if not split_CC_and_MLO:
                 for i in range(len(view)):
                     if 'MLO' in view[i]:
-                        is_it_mlo[i] += 1
+                        is_it_mlo[i][0] += 1
                     else:
-                        is_it_mlo[i] -= 1
+                        is_it_mlo[i][1] += 1
 
             # Forward
             print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
