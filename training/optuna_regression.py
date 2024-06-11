@@ -126,7 +126,7 @@ def regression_training(trial):
             # Zero the parameter gradients
             optimizer.zero_grad()
 
-            is_it_mlo = torch.zeros_like(torch.hstack([targets, targets])).float()
+            is_it_mlo = torch.zeros_like(torch.vstack([targets, targets])).T.float()
             if not split_CC_and_MLO:
                 for i in range(len(view)):
                     if 'MLO' in view[i]:

@@ -31,13 +31,13 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
             inputs[nan_mask] = 0
             inputs, targets = inputs.cuda(), targets
 
-            is_it_mlo = torch.zeros_like(targets).float()
+            is_it_mlo = torch.zeros_like(torch.vstack([targets, targets])).T.float()
             if not split_CC_and_MLO:
                 for i in range(len(file_names)):
                     if 'MLO' in file_names[i]:
-                        is_it_mlo[i] += 1
+                        is_it_mlo[i][0] += 1
                     else:
-                        is_it_mlo[i] -= 1
+                        is_it_mlo[i][1] += 1
 
             outputs = model.forward(inputs.unsqueeze(1), is_it_mlo.cuda()).to('cpu')
             test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)

@@ -69,7 +69,7 @@ class Pvas_Model(nn.Module):
     def forward(self, x, is_it_mlo):
         H = self.extractor(x)
         if not self.split:
-            H = torch.vstack([H.T, is_it_mlo]).T
+            H = torch.hstack([H, is_it_mlo])
         r = self.regressor(H)
         return r
 
@@ -183,7 +183,7 @@ class ResNetTransformer(nn.Module):
         # Regression
         x = x.squeeze(1)
         if not self.split:
-            x = torch.vstack([x.T, is_it_mlo]).T
+            x = torch.hstack([x, is_it_mlo])
         x = self.regressor(x)
 
         return x

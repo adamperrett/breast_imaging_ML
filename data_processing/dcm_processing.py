@@ -43,12 +43,12 @@ sns.set(style='dark')
 
 print("Reading data")
 
-raw = False  # Raw or processed data
+raw = True  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
 by_patient = False  # DEPRICATED: Put all patient images into a single data instance
 split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine it all
 average_score = False  # Do you want per image scores or average over all views
-clean_with_pvas = True  # Will keep only patients in the clean pvas datasheet
+clean_with_pvas = False  # Will keep only patients in the clean pvas datasheet
 remove_priors = True  # Will the dataset filter out priors
 use_priors = False
 if use_priors:
@@ -97,14 +97,16 @@ if raw:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_RAW'
     else:
-        image_directory = 'Z:/PROCAS_ALL_RAW'
+        # image_directory = 'Z:/PROCAS_ALL_RAW'
+        image_directory = 'D:/priors_data/raw'
     image_type_id = 'ASSURE_RAW_ID'
     save_name += '_raw'
 else:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED'
     else:
-        image_directory = 'Z:/PROCAS_ALL_PROCESSED'
+        # image_directory = 'Z:/PROCAS_ALL_PROCESSED'
+        image_directory = 'D:/priors_data/raw'
     image_type_id = 'ASSURE_PROCESSED_ANON_ID'
     save_name += '_processed'
 procas_ids = procas_data[image_type_id]
@@ -352,8 +354,12 @@ def process_images(parent_directory, patient_dir, snapshot):
         if not by_patient:
             for p_i, i_f, v, s in zip(preprocessed_images, image_files, all_views, all_sides):
                 target_value = id_target_dict[s+'_'+v][patient_dir[-5:]]
-                target_value_r1 = id_target_dict[s + '_' + v + '-1'][patient_dir[-5:]]
-                target_value_r2 = id_target_dict[s + '_' + v + '-2'][patient_dir[-5:]]
+                if not use_priors:
+                    target_value_r1 = id_target_dict[s + '_' + v + '-1'][patient_dir[-5:]]
+                    target_value_r2 = id_target_dict[s + '_' + v + '-2'][patient_dir[-5:]]
+                else:
+                    target_value_r1 = 0
+                    target_value_r2 = 0
                 if split_CC_and_MLO:
                     if v == 'CC':
                         dataset_entries[process_type+'_CC'].append((p_i, target_value,
