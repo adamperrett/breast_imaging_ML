@@ -4,6 +4,7 @@ import sys
 num_epochs = 600
 patience = 5
 improving_loss_or_r2 = 'loss'
+r2_weighting_offset = 0
 lr = 0.003
 momentum = 0.9
 # batch_size = 128
@@ -26,7 +27,7 @@ else:
 
 
 on_CSF = True
-optuna_optimisation = True
+optuna_optimisation = False
 
 if on_CSF:
     '''
@@ -47,14 +48,14 @@ if on_CSF:
         processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
         # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
         # data_name = 'procas_pvas_vbd_processed_per_im_base'
-        # data_name = 'priors_pvas_vbd_processed_per_im_base'
+        # data_name = 'local_pvas_vas_raw_base'
         data_name = 'procas_pvas_vas_raw_base'
+        priors_name = 'priors_pvas_vas_raw_base'
         if split_CC_and_MLO:
-            base_name += CC_or_MLO
-            if CC_or_MLO == 'CC':
-                data_name += '_CC'
-            else:
-                data_name += '_MLO'
+            base_name += '_' + CC_or_MLO
+            data_name += '_' + CC_or_MLO
+            priors_name += '_' + CC_or_MLO
+        processed_priors_path = processed_dataset_path+priors_name+'.pth'
         processed_dataset_path += data_name+'.pth'
 
         # data_name = 'priors_pvas_processed_base_CC'

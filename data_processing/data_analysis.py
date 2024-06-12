@@ -15,7 +15,7 @@ from sklearn.metrics import r2_score
 
 
 def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, mean, std,
-                   return_names=False, split_CC_and_MLO=True):
+                   return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
     model.eval()
     running_loss = 0.0
     all_targets = []
@@ -55,7 +55,7 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
         print("Corrupted targets")
     if torch.sum(torch.isnan(torch.tensor(all_predictions))) > 0:
         print("Corrupted predictions")
-    r2 = r2_score(all_targets, all_predictions, sample_weight=all_targets)
+    r2 = r2_score(all_targets, all_predictions, sample_weight=all_targets+r2_weighting_offset)
     if return_names:
         return epoch_loss, all_targets, all_predictions, r2, all_names
     else:
