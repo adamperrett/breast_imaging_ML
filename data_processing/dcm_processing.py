@@ -50,7 +50,7 @@ split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine 
 average_score = False  # Do you want per image scores or average over all views
 clean_with_pvas = False  # Will keep only patients in the clean pvas datasheet
 remove_priors = True  # Will the dataset filter out priors
-use_priors = False
+use_priors = True
 if use_priors:
     remove_priors = False
 
