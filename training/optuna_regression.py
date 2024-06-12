@@ -109,18 +109,34 @@ def regression_training(trial):
     # Training parameters
     not_improved_loss = 0
     not_improved_r2 = 0
+    not_improved_r2w = 0
     best_val_loss = float('inf')
     best_test_loss = float('inf')
     best_priors_loss = float('inf')
     best_val_l_r2 = -float('inf')
     best_test_l_r2 = -float('inf')
     best_priors_l_r2 = -float('inf')
+    best_val_rw_r2 = -float('inf')
+    best_test_rw_r2 = -float('inf')
+    best_priors_rw_r2 = -float('inf')
+    best_val_l_r2w = -float('inf')
+    best_test_l_r2w = -float('inf')
+    best_priors_l_r2w = -float('inf')
+    best_val_r_r2w = -float('inf')
+    best_test_r_r2w = -float('inf')
+    best_priors_r_r2w = -float('inf')
     best_val_r_loss = float('inf')
     best_test_r_loss = float('inf')
     best_priors_r_loss = float('inf')
+    best_val_rw_loss = float('inf')
+    best_test_rw_loss = float('inf')
+    best_priors_rw_loss = float('inf')
     best_val_r2 = -float('inf')
     best_test_r2 = -float('inf')
     best_priors_r2 = -float('inf')
+    best_val_r2w = -float('inf')
+    best_test_r2w = -float('inf')
+    best_priors_r2w = -float('inf')
     # scheduler = ReduceLROnPlateau(optimizer, 'min', patience=int(patience/10), factor=0.9, verbose=True)
     writer = SummaryWriter(working_dir + '/results/' + best_model_name)
 
@@ -180,20 +196,21 @@ def regression_training(trial):
         train_loss /= len(train_loader.dataset)
         scaled_train_loss /= len(train_loader.dataset)
 
-        train_r2 = r2_score(all_targets, all_predictions, sample_weight=all_targets+r2_weighting_offset)
+        train_r2 = r2_score(all_targets, all_predictions)
+        train_r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
         # Validation
         print("Evaluating on the validation set")
-        val_loss, val_labels, val_preds, val_r2 = evaluate_model(model, val_loader, criterion,
+        val_loss, val_labels, val_preds, val_r2, val_r2w = evaluate_model(model, val_loader, criterion,
                                                                  inverse_standardize_targets, mean, std,
                                                                  split_CC_and_MLO=split_CC_and_MLO,
                                                                  r2_weighting_offset=r2_weighting_offset)
         print("Evaluating on the test set")
-        test_loss, test_labels, test_preds, test_r2 = evaluate_model(model, test_loader, criterion,
+        test_loss, test_labels, test_preds, test_r2, test_r2w = evaluate_model(model, test_loader, criterion,
                                                                      inverse_standardize_targets, mean, std,
                                                                      split_CC_and_MLO=split_CC_and_MLO,
                                                                      r2_weighting_offset=r2_weighting_offset)
         print("Evaluating on the priors set")
-        priors_loss, priors_labels, priors_preds, priors_r2 = evaluate_model(model, priors_loader, criterion,
+        priors_loss, priors_labels, priors_preds, priors_r2, priors_r2w = evaluate_model(model, priors_loader, criterion,
                                                                      inverse_standardize_targets, mean, std,
                                                                      split_CC_and_MLO=split_CC_and_MLO,
                                                                      r2_weighting_offset=r2_weighting_offset)
@@ -207,16 +224,22 @@ def regression_training(trial):
               f"\nTrain Loss: {scaled_train_loss:.4f}, Val Loss: {val_loss:.4f}, "
               f"Test loss: {test_loss:.4f}, Priors loss: {priors_loss:.4f}"
               f"\nTrain R2: {train_r2:.4f}, Val R2: {val_r2:.4f}, "
-              f"Test R2: {test_r2:.4f}, Priors R2: {priors_r2:.4f}")
+              f"Test R2: {test_r2:.4f}, Priors R2: {priors_r2:.4f}"
+              f"\nTrain R2w: {train_r2w:.4f}, Val R2w: {val_r2w:.4f}, "
+              f"Test R2w: {test_r2w:.4f}, Priors R2w: {priors_r2w:.4f}")
 
         writer.add_scalar('Loss/Train', scaled_train_loss, epoch)
         writer.add_scalar('R2/Train', train_r2, epoch)
+        writer.add_scalar('R2 weighted/Train', train_r2w, epoch)
         writer.add_scalar('Loss/Validation', val_loss, epoch)
         writer.add_scalar('R2/Validation', val_r2, epoch)
+        writer.add_scalar('R2 weighted/Validation', val_r2w, epoch)
         writer.add_scalar('Loss/Test', test_loss, epoch)
         writer.add_scalar('R2/Test', test_r2, epoch)
+        writer.add_scalar('R2 weighted/Test', test_r2w, epoch)
         writer.add_scalar('Loss/Priors', priors_loss, epoch)
         writer.add_scalar('R2/Priors', priors_r2, epoch)
+        writer.add_scalar('R2 weighted/Priors', priors_r2w, epoch)
 
         if on_CSF and optuna_optimisation:
             for attempt in range(40):
@@ -239,11 +262,29 @@ def regression_training(trial):
             best_val_r_loss = val_loss
             best_test_r_loss = test_loss
             best_priors_r_loss = priors_loss
+            best_val_r_r2w = val_r2w
+            best_test_r_r2w = test_r2w
+            best_priors_r_r2w = priors_r2w
             not_improved_r2 = 0
             print("Validation R2 improved. Saving best_model.")
-            torch.save(model.state_dict(), working_dir + '/../models/r_' + best_model_name)
+            torch.save(model.state_dict(), working_dir + '/../models/rw_' + best_model_name)
         else:
             not_improved_r2 += 1
+        if val_r2w > best_val_r2w:
+            best_val_r2w = val_r2w
+            best_test_r2w = test_r2w
+            best_priors_r2w = priors_r2w
+            best_val_rw_loss = val_loss
+            best_test_rw_loss = test_loss
+            best_priors_rw_loss = priors_loss
+            best_val_rw_r2 = val_r2
+            best_test_rw_r2 = test_r2
+            best_priors_rw_r2 = priors_r2
+            not_improved_r2w = 0
+            print("Validation R2 weighted improved. Saving best_model.")
+            torch.save(model.state_dict(), working_dir + '/../models/r_' + best_model_name)
+        else:
+            not_improved_r2w += 1
         # Check early stopping
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -252,6 +293,9 @@ def regression_training(trial):
             best_val_l_r2 = val_r2
             best_test_l_r2 = test_r2
             best_priors_l_r2 = priors_r2
+            best_val_l_r2w = val_r2w
+            best_test_l_r2w = test_r2w
+            best_priors_l_r2w = priors_r2w
             not_improved_loss = 0
             print("Validation loss improved. Saving best_model.")
             torch.save(model.state_dict(), working_dir + '/../models/l_' + best_model_name)
@@ -259,12 +303,20 @@ def regression_training(trial):
             not_improved_loss += 1
         print(f"From best val loss at epoch {epoch - not_improved_loss}:\n "
               f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f} priors loss {best_priors_loss:.4f} "
-              f"val r2: {best_val_l_r2:.4f} test r2 {best_test_l_r2:.4f} priors r2 {best_priors_l_r2:.4f}")
+              f"val r2: {best_val_l_r2:.4f} test r2 {best_test_l_r2:.4f} priors r2 {best_priors_l_r2:.4f}"
+              f"val r2w: {best_val_l_r2w:.4f} test r2w {best_test_l_r2w:.4f} priors r2w {best_priors_l_r2w:.4f}")
         print(f"From best val R2 at epoch {epoch - not_improved_r2}:\n "
               f"val loss: {best_val_r_loss:.4f} test loss {best_test_r_loss:.4f} priors loss {best_priors_r_loss:.4f} "
-              f"val r2: {best_val_r2:.4f} test r2 {best_test_r2:.4f} priors r2 {best_priors_r2:.4f}")
+              f"val r2: {best_val_r2:.4f} test r2 {best_test_r2:.4f} priors r2 {best_priors_r2:.4f}"
+              f"val r2w: {best_val_r_r2w:.4f} test r2w {best_test_r_r2w:.4f} priors r2w {best_priors_r_r2w:.4f}")
+        print(f"From best val R2w at epoch {epoch - not_improved_r2w}:\n "
+              f"val loss: {best_val_rw_loss:.4f} test loss {best_test_rw_loss:.4f} priors loss {best_priors_rw_loss:.4f} "
+              f"val r2: {best_val_rw_r2:.4f} test r2 {best_test_rw_r2:.4f} priors r2 {best_priors_rw_r2:.4f}"
+              f"val r2w: {best_val_r2w:.4f} test r2w {best_test_r2w:.4f} priors r2w {best_priors_r2w:.4f}")
         if improving_loss_or_r2 == 'r2':
             time_since_improved = not_improved_r2
+        elif improving_loss_or_r2 == 'r2w':
+            time_since_improved = not_improved_r2w
         else:
             time_since_improved = not_improved_loss
         if time_since_improved >= patience:
@@ -273,16 +325,31 @@ def regression_training(trial):
 
         writer.add_scalar('Loss/Best Validation Loss from Loss', best_val_loss, epoch)
         writer.add_scalar('Loss/Best Validation Loss from R2', best_val_r_loss, epoch)
+        writer.add_scalar('Loss/Best Validation Loss from R2w', best_val_rw_loss, epoch)
         writer.add_scalar('R2/Best Validation R2 from R2', best_val_r2, epoch)
         writer.add_scalar('R2/Best Validation R2 from Loss', best_val_l_r2, epoch)
+        writer.add_scalar('R2/Best Validation R2 from R2w', best_val_rw_r2, epoch)
+        writer.add_scalar('R2w/Best Validation R2w from R2', best_val_r_r2w, epoch)
+        writer.add_scalar('R2w/Best Validation R2w from Loss', best_val_l_r2w, epoch)
+        writer.add_scalar('R2w/Best Validation R2w from R2w', best_val_r2w, epoch)
         writer.add_scalar('Loss/Best Test Loss from Loss', best_test_loss, epoch)
         writer.add_scalar('Loss/Best Test Loss from R2', best_test_r_loss, epoch)
+        writer.add_scalar('Loss/Best Test Loss from R2w', best_test_rw_loss, epoch)
         writer.add_scalar('R2/Best Test R2 from R2', best_test_r2, epoch)
         writer.add_scalar('R2/Best Test R2 from Loss', best_test_l_r2, epoch)
+        writer.add_scalar('R2/Best Test R2 from R2w', best_test_rw_r2, epoch)
+        writer.add_scalar('R2w/Best Test R2w from R2', best_test_r_r2w, epoch)
+        writer.add_scalar('R2w/Best Test R2w from Loss', best_test_l_r2w, epoch)
+        writer.add_scalar('R2w/Best Test R2w from R2w', best_test_r_r2w, epoch)
         writer.add_scalar('Loss/Best Priors Loss from Loss', best_priors_loss, epoch)
         writer.add_scalar('Loss/Best Priors Loss from R2', best_priors_r_loss, epoch)
+        writer.add_scalar('Loss/Best Priors Loss from R2w', best_priors_rw_loss, epoch)
         writer.add_scalar('R2/Best Priors R2 from R2', best_priors_r2, epoch)
         writer.add_scalar('R2/Best Priors R2 from Loss', best_priors_l_r2, epoch)
+        writer.add_scalar('R2/Best Priors R2 from R2w', best_priors_rw_r2, epoch)
+        writer.add_scalar('R2w/Best Priors R2w from R2', best_priors_r_r2w, epoch)
+        writer.add_scalar('R2w/Best Priors R2w from Loss', best_priors_l_r2w, epoch)
+        writer.add_scalar('R2w/Best Priors R2w from R2w', best_priors_r2w, epoch)
 
         # scheduler.step(val_loss)
 
@@ -297,34 +364,38 @@ def regression_training(trial):
 
     # Evaluating on all datasets: train, val, test
     print("Final evaluation on the train set")
-    train_loss, train_labels, train_preds, train_r2 = evaluate_model(model, train_loader, criterion,
+    train_loss, train_labels, train_preds, train_r2, train_r2w = evaluate_model(model, train_loader, criterion,
                                                                      inverse_standardize_targets, mean, std,
                                                                      split_CC_and_MLO=split_CC_and_MLO,
                                                                      r2_weighting_offset=r2_weighting_offset)
     print("Final evaluation on the validation set")
-    val_loss, val_labels, val_preds, val_r2 = evaluate_model(model, val_loader, criterion,
+    val_loss, val_labels, val_preds, val_r2, val_r2w = evaluate_model(model, val_loader, criterion,
                                                              inverse_standardize_targets,
                                                              mean, std, split_CC_and_MLO=split_CC_and_MLO,
                                                              r2_weighting_offset=r2_weighting_offset)
     print("Final evaluation on the test set")
-    test_loss, test_labels, test_preds, test_r2 = evaluate_model(model, test_loader, criterion,
+    test_loss, test_labels, test_preds, test_r2, test_r2w = evaluate_model(model, test_loader, criterion,
                                                                  inverse_standardize_targets,
                                                                  mean, std, split_CC_and_MLO=split_CC_and_MLO,
                                                                  r2_weighting_offset=r2_weighting_offset)
     print("Final evaluation on the priors set")
-    priors_loss, priors_labels, priors_preds, priors_r2 = evaluate_model(model, priors_loader, criterion,
+    priors_loss, priors_labels, priors_preds, priors_r2, priors_r2w = evaluate_model(model, priors_loader, criterion,
                                                                          inverse_standardize_targets,
                                                                          mean, std, split_CC_and_MLO=split_CC_and_MLO,
                                                                          r2_weighting_offset=r2_weighting_offset)
 
     # R2 Scores
     print(f"Train R2 Score: {train_r2:.4f}")
+    print(f"Train R2w Score: {train_r2w:.4f}")
     print(f"Train Loss: {train_loss:.4f}")
     print(f"Validation R2 Score: {val_r2:.4f}")
+    print(f"Validation R2w Score: {val_r2w:.4f}")
     print(f"Validation Loss: {val_loss:.4f}")
     print(f"Test R2 Score: {test_r2:.4f}")
+    print(f"Test R2w Score: {test_r2w:.4f}")
     print(f"Test Loss: {test_loss:.4f}")
     print(f"Priors R2 Score: {priors_r2:.4f}")
+    print(f"Priors R2w Score: {priors_r2w:.4f}")
     print(f"Priors Loss: {priors_loss:.4f}")
 
     # Scatter plots
