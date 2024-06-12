@@ -19,16 +19,6 @@ from data_processing.data_analysis import *
 # from data_processing.dcm_processing import *
 from data_processing.plotting import *
 
-if on_CSF and not optuna_optimisation:
-    config = int(sys.argv[1]) - 1
-
-    config = configurations[config]
-    batch_size = config['batch_size']
-    op_choice = config['optimizer']
-    weighted = config['weighted']
-    transformed = config['transformed']
-    lr = config['lr']
-
 # time.sleep(60*60*14)
 print(time.localtime())
 seed_value = 272727
@@ -47,7 +37,7 @@ def round_to_(x, sig_fig=2):
 
 def regression_training(trial):
     global base_name
-    if on_CSF and optuna_optimisation:
+    if optuna_optimisation:
         lr = trial.suggest_float('lr', 3e-6, 1e-4, log=True)
         op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
         batch_size = trial.suggest_int('batch_size', 10, 27)
