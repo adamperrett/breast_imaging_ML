@@ -11,6 +11,7 @@ parent_dir = os.path.dirname(current_path)
 sys.path.insert(0, parent_dir)
 from training.training_config import *
 from data_processing.data_analysis import *
+import time
 
 gpu = False
 if gpu:
@@ -113,7 +114,7 @@ mean = 0
 std = 0
 
 def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
-    print("Loading data to split by patient")
+    print("Loading data to split by patient", time.localtime())
     dataset = torch.load(dataset_path)
     random.seed(seed_value)
     np.random.seed(seed_value)
@@ -124,7 +125,7 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    print("Grouping entries by the unique key")
+    print("Grouping entries by the unique key", time.localtime())
     groups = {}
     for entry in tqdm(dataset):
         key = entry[-2]  # The second last entry where the patient id is
@@ -155,7 +156,7 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0, only_testing=False):
     full_processed_data_address = os.path.join(processed_dataset_path, file_name+'.pth')
     if only_testing:
-        print(f"Loading data for testing from {processed_dataset_path}")
+        print(f"Loading data for testing from {processed_dataset_path}", time.localtime())
         data = torch.load(full_processed_data_address)
         dataset = MammogramDataset(data)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
@@ -164,7 +165,7 @@ def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling,
 
     global mean, std
 
-    print(f"Data being collected = {file_name}")
+    print(f"Data being collected = {file_name}", time.localtime())
     save_path = os.path.join(working_dir, file_name + '_data.pth')
     if os.path.exists(save_path):
         print("Loading data")
@@ -173,7 +174,7 @@ def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling,
         mean, std = data['mean'], data['std']
         computed_weights = data['weights'] if weighted_sampling else None
     else:
-        print("Processing data for the first time")
+        print("Processing data for the first time", time.localtime())
         # Splitting the dataset
         train_ratio, val_ratio, test_ratio = 0.7, 0.2, 0.1
         train_data, val_data, test_data = split_by_patient(full_processed_data_address,
@@ -185,7 +186,7 @@ def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling,
 
         mean, std = compute_target_statistics(targets)
 
-        print("Saving data")
+        print("Saving data", time.localtime())
         torch.save({
             'train': train_data,
             'val': val_data,
@@ -211,13 +212,13 @@ def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling,
         data_transforms = None
 
     # Create Dataset
-    print("Creating Dataset")
+    print("Creating Dataset", time.localtime())
     train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
     val_dataset = MammogramDataset(val_data)
     test_dataset = MammogramDataset(test_data)
 
     # Create DataLoaders
-    print("Creating DataLoaders for", device)
+    print("Creating DataLoaders for", device, time.localtime())
     if by_patient:
         if weighted_sampling:
             train_loader = DataLoader(train_dataset,

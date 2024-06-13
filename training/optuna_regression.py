@@ -140,7 +140,7 @@ def regression_training(trial):
     # scheduler = ReduceLROnPlateau(optimizer, 'min', patience=int(patience/10), factor=0.9, verbose=True)
     writer = SummaryWriter(working_dir + '/results/' + best_model_name)
 
-    print("Beginning training")
+    print("Beginning training", time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
     for epoch in tqdm(range(num_epochs)):
         model.train()
@@ -433,6 +433,7 @@ def regression_training(trial):
 
 if __name__ == "__main__":
     if on_CSF and optuna_optimisation:
+        print("Setting up optimisation", time.localtime())
         study_name = '{}_BML_optuna'.format(base_name)  # Unique identifier
         storage_url = 'sqlite:///{}.db'.format(study_name)
         if improving_loss_or_r2 == 'r2':
@@ -443,7 +444,7 @@ if __name__ == "__main__":
                                     # sampler=optuna.samplers.TPESampler,
                                     # sampler=optuna.samplers.NSGAIIISampler(population_size=30), # can do multiple objectives
                                     direction=direction, pruner=optuna.pruners.NopPruner())
-        print("Beginning optimisation")
+        print("Beginning optimisation", time.localtime())
         study.optimize(regression_training, n_trials=1)  # Each script execution does 1 trial
 
         from optuna.visualization import (
