@@ -156,7 +156,7 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0, only_testing=False):
     full_processed_data_address = os.path.join(processed_dataset_path, file_name+'.pth')
     if only_testing:
-        print(f"Loading data for testing from {processed_dataset_path}", time.localtime())
+        print(f"Loading data {file_name} for testing from {processed_dataset_path}", time.localtime())
         data = torch.load(full_processed_data_address)
         dataset = MammogramDataset(data)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
@@ -165,7 +165,7 @@ def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling,
 
     global mean, std
 
-    print(f"Data being collected = {file_name}", time.localtime())
+    print(f"Data being collected = {file_name} from {processed_dataset_path}", time.localtime())
     save_path = os.path.join(working_dir, file_name + '_data.pth')
     if os.path.exists(save_path):
         print("Loading data")
