@@ -113,6 +113,7 @@ mean = 0
 std = 0
 
 def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
+    print("Loading data to split by patient")
     dataset = torch.load(dataset_path)
     random.seed(seed_value)
     np.random.seed(seed_value)
@@ -151,9 +152,11 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 
     return train_data, val_data, test_data
 
-def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0, only_testing=False):
+def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0, only_testing=False):
+    full_processed_data_address = os.path.join(processed_dataset_path, file_name+'.pth')
     if only_testing:
-        data = torch.load(processed_dataset_path)
+        print(f"Loading data for testing from {processed_dataset_path}")
+        data = torch.load(full_processed_data_address)
         dataset = MammogramDataset(data)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                             generator=torch.Generator(device=device))
@@ -161,8 +164,8 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
 
     global mean, std
 
-    data_file_path_and_name = os.path.join(working_dir, data_name)
-    save_path = data_file_path_and_name + '_data.pth'
+    print(f"Data being collected = {file_name}")
+    save_path = os.path.join(working_dir, file_name + '_data.pth')
     if os.path.exists(save_path):
         print("Loading data")
         data = torch.load(save_path)
@@ -173,7 +176,8 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
         print("Processing data for the first time")
         # Splitting the dataset
         train_ratio, val_ratio, test_ratio = 0.7, 0.2, 0.1
-        train_data, val_data, test_data = split_by_patient(processed_dataset_path, train_ratio, val_ratio, seed_value)
+        train_data, val_data, test_data = split_by_patient(full_processed_data_address,
+                                                           train_ratio, val_ratio, seed_value)
 
         # Compute weights for the training set
         targets = [label for _, label, _, _, _, _ in train_data]

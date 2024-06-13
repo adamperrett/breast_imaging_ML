@@ -32,8 +32,7 @@ optuna_optimisation = False
 if on_CSF:
     working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
     # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
-    base_name = 'vas_baseline'
-    n_images = 0
+    base_name = 'vas_outlier_tests'
     # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
     processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
@@ -45,15 +44,14 @@ if on_CSF:
         base_name += '_' + CC_or_MLO
         data_name += '_' + CC_or_MLO
         priors_name += '_' + CC_or_MLO
-    processed_priors_path = processed_dataset_path+priors_name+'.pth'
-    processed_dataset_path += data_name+'.pth'
+    processed_priors_file = priors_name
+    processed_dataset_file = data_name
 else:
 
 
     # working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
     working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     base_name = 'vas_baseline'
-    n_images = 0
     # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
     # processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
@@ -65,5 +63,5 @@ else:
         base_name += '_' + CC_or_MLO
         data_name += '_' + CC_or_MLO
         priors_name += '_' + CC_or_MLO
-    processed_priors_path = processed_dataset_path+priors_name+'.pth'
-    processed_dataset_path += data_name+'.pth'
+    processed_priors_file = priors_name
+    processed_dataset_file = data_name

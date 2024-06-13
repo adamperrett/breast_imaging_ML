@@ -48,7 +48,7 @@ def regression_training(trial):
         transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
         weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
         weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
-        data_path = processed_dataset_path
+        data_path = processed_dataset_file
     else:
         lr = 1.28e-05
         op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
@@ -61,14 +61,14 @@ def regression_training(trial):
         weight_samples = 0
         weight_loss = 0
         config = int(sys.argv[1]) - 1
-        outlier_configs = []
-        string_names = []
+        outlier_configs = ['procas_pvas_vas_raw_base']
+        string_names = ['no_thresholding']
         for threshold in [2, 6, 10, 14, 18, 22, 26, 30]:
             for method in ['remove_patient', 'remove_image', 'replace_with_avg']:
-                outlier_configs.append(f'outlier_processed_by_{method}_threshold_{threshold}_pvas_vas_raw_base.pth')
+                outlier_configs.append(f'outlier_processed_by_{method}_threshold_{threshold}_pvas_vas_raw_base')
                 string_names.append('{}_th{}'.format(method, threshold))
         data_path = outlier_configs[config]
-        base_name = base_name + '_outlier_{}'.format(string_names[config])
+        base_name = base_name + '_{}'.format(string_names[config])
 
     best_model_name = '{}_lr{}x{}_{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
         base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed,
@@ -78,7 +78,7 @@ def regression_training(trial):
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
     train_loader, val_loader, test_loader = return_dataloaders(data_path, transformed,
                                                                weight_loss, weight_samples, batch_size)
-    priors_loader = return_dataloaders(processed_priors_path, transformed,
+    priors_loader = return_dataloaders(processed_priors_file, transformed,
                                        weight_loss, weight_samples, batch_size,
                                        only_testing=True)
 
