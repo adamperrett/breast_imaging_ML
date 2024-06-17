@@ -153,7 +153,8 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 
     return train_data, val_data, test_data
 
-def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0, only_testing=False):
+def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0,
+                       only_testing=False):
     full_processed_data_address = os.path.join(processed_dataset_path, file_name+'.pth')
     if only_testing:
         print(f"Loading data {file_name} for testing from {processed_dataset_path}", time.localtime())
@@ -213,9 +214,14 @@ def return_dataloaders(file_name, transformed, weighted_loss, weighted_sampling,
 
     # Create Dataset
     print("Creating Dataset", time.localtime())
-    train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
     val_dataset = MammogramDataset(val_data)
-    test_dataset = MammogramDataset(test_data)
+    if optuna_optimisation:
+        train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
+        test_dataset = MammogramDataset(test_data)
+    else:
+        train_data.extend(test_data)
+        train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=sample_weights)
+        test_dataset = MammogramDataset(test_data[-10:])
 
     # Create DataLoaders
     print("Creating DataLoaders for", device, time.localtime())

@@ -30,15 +30,15 @@ on_CSF = True
 optuna_optimisation = False
 
 if on_CSF:
-    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
-    base_name = 'vas_outlier_tests'
-    # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
-    processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
-    # data_name = 'procas_pvas_vbd_processed_per_im_base'
+    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     # data_name = 'local_pvas_vas_raw_base'
+    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     data_name = 'procas_pvas_vas_raw_base'
+    base_name = 'vas_outlier_reseeding'
+    # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
+    # data_name = 'procas_pvas_vbd_processed_per_im_base'
     priors_name = 'priors_pvas_vas_raw_base'
     if split_CC_and_MLO:
         base_name += '_' + CC_or_MLO

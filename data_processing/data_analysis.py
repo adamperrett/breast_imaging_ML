@@ -55,12 +55,20 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
         print("Corrupted targets")
     if torch.sum(torch.isnan(torch.tensor(all_predictions))) > 0:
         print("Corrupted predictions")
+    error, stderr, conf_int = compute_error_metrics(torch.tensor(all_targets), torch.tensor(all_predictions))
     r2 = r2_score(all_targets, all_predictions)
     r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
     if return_names:
         return epoch_loss, all_targets, all_predictions, r2, all_names
     else:
-        return epoch_loss, all_targets, all_predictions, r2, r2w
+        return epoch_loss, all_targets, all_predictions, r2, r2w, error, conf_int
+
+def compute_error_metrics(targets, pred):
+    error = torch.tensor(pred) - torch.tensor(targets)
+    stderr = torch.std(error)
+    conf_int = stderr * 1.96
+    return torch.mean(error), stderr, conf_int
+
 
 def compute_target_statistics(labels):
     # labels = [label for _, label, _, _, _, _ in dataset]
