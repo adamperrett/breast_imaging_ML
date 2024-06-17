@@ -75,6 +75,7 @@ def regression_training(trial):
         weight_loss, weight_samples)
 
     print("Accessing data from", data_path, "\nConfig", best_model_name)
+    print(time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
     train_loader, val_loader, test_loader = return_dataloaders(data_path, transformed,
                                                                weight_loss, weight_samples, batch_size)
@@ -536,7 +537,7 @@ def regression_training(trial):
 
 if __name__ == "__main__":
     if on_CSF and optuna_optimisation:
-        print("Setting up optimisation", time.localtime())
+        print("Setting up optuna optimisation", time.localtime())
         study_name = '{}_BML_optuna'.format(base_name)  # Unique identifier
         storage_url = 'sqlite:///{}.db'.format(study_name)
         if improving_loss_or_r2 == 'r2':
@@ -597,6 +598,6 @@ if __name__ == "__main__":
         fig.write_html(os.path.join(results_dir, "{}_intermediate_values.html".format(study_name)))
 
     else:
-        print("Running locally")
+        print("Running without optuna", time.localtime())
         _ = regression_training(None)
     print("Done")
