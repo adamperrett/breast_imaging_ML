@@ -16,21 +16,23 @@ csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
 # csv_name = 'priors_per_image_reader_and_MAI.csv'
 # csv_name = 'PROCAS_Volpara_dirty.csv'
 # csv_name = 'volpara_priors_testing.csv'
-csv_name = 'volpara_priors_testing_weight.csv'
+# csv_name = 'volpara_priors_testing_weight.csv'
+# csv_name = 'PROCAS_matched_priors_v2_loss_training.csv'
 # csv_name = 'average_mosaic_performance.csv'
 # csv_name = 'individual_mosaic_performance.csv'
+csv_name = 'individual_mosaic_performance_with_averages.csv'
 df = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 image_dir_path = 'Z:\\PROCAS_ALL_PROCESSED\\'
 
 truth_labels = 'priors'
 if truth_labels == 'priors':
-    vas_csv_location = 'priors_per_image_reader_and_MAI.csv'
+    vas_csv_location = 'PROCAS_matched_priors_v2.csv'
     vas_df = pd.read_csv(os.path.join(csv_directory, vas_csv_location), sep=',')
 
 valid_data = pd.DataFrame()
 
 # add something to plot it as error vs actual + stdev bars instead
-plotting_type = 'birads'
+plotting_type = 'error'
 birad_intervals = [3.5, 7.5, 15.5]
 birad_categories = [1, 2, 3, 4]
 
@@ -70,9 +72,9 @@ def update_plot():
     stderr = np.std(error)
     aveerr = np.mean(error)
     abserr = np.mean(np.abs(error))
+    interval = stderr * 1.96
     # Create a new Seaborn JointPlot
     if plotting_type == 'error':
-        interval = stderr * 1.95
         jointplot = sns.jointplot(x=df[selected_x], y=error, kind="scatter")
         # Add the MSE and R2 to the plot title
         ax_joint = jointplot.ax_joint
@@ -149,7 +151,8 @@ def update_plot():
                       linestyle='--', color='red')
 
     # Add the MSE and R2 as a text box to the right of the plot
-    text = f'MSE: {mse:.2f}\nR²: {r2:.2f}\nx_R²: {wx_r2:.2f}\ny_R²: {wy_r2:.2f}\n√err²: {abserr:.2f}\nstd: {stderr:.2f}'
+    text = f'MSE: {mse:.2f}\nR²: {r2:.2f}\nx_R²: {wx_r2:.2f}\ny_R²: {wy_r2:.2f}\n' \
+           f'√err²: {abserr:.2f}\nstd: {stderr:.2f}\naverr: {aveerr:.2f}\nconfint: {interval:.2f}'
     plt.figtext(0.93, 0.5, text, ha='center', va='center', fontsize=12)
 
     # Get the current size of the canvas in pixels
