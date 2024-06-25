@@ -15,7 +15,7 @@ from sklearn.metrics import r2_score
 
 
 def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, mean, std,
-                   return_names=False, split_CC_and_MLO=True):
+                   return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
     model.eval()
     running_loss = 0.0
     all_targets = []
@@ -33,13 +33,13 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
             inputs[nan_mask] = 0
             inputs, targets = inputs.to(device), targets
 
-            is_it_mlo = torch.zeros_like(targets).float()
+            is_it_mlo = torch.zeros_like(torch.vstack([targets, targets])).T.float()
             if not split_CC_and_MLO:
                 for i in range(len(file_names)):
                     if 'MLO' in file_names[i]:
-                        is_it_mlo[i] += 1
+                        is_it_mlo[i][0] += 1
                     else:
-                        is_it_mlo[i] -= 1
+                        is_it_mlo[i][1] += 1
 
             outputs = model.forward(inputs.unsqueeze(1)).to('cpu')
             test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
@@ -57,14 +57,22 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
         print("Corrupted targets")
     if torch.sum(torch.isnan(torch.tensor(all_predictions))) > 0:
         print("Corrupted predictions")
-    r2 = r2_score(all_targets, all_predictions, sample_weight=all_targets)
+    error, stderr, conf_int = compute_error_metrics(torch.tensor(all_targets), torch.tensor(all_predictions))
+    r2 = r2_score(all_targets, all_predictions)
+    r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
     if return_names:
         return epoch_loss, all_targets, all_predictions, r2, all_names
     else:
-        return epoch_loss, all_targets, all_predictions, r2
+        return epoch_loss, all_targets, all_predictions, r2, r2w, error, conf_int
 
-def compute_target_statistics(dataset):
-    labels = [label for _, label, _, _, _, _ in dataset]
+def compute_error_metrics(targets, pred):
+    error = torch.tensor(pred) - torch.tensor(targets)
+    stderr = torch.std(error)
+    conf_int = stderr * 1.96
+    return torch.mean(error), stderr, conf_int
+
+
+def compute_target_statistics(labels):
     mean = np.mean(labels)
     std = np.std(labels)
     return mean, std

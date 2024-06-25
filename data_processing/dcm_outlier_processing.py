@@ -27,7 +27,7 @@ import pydicom
 from skimage import filters
 import gc
 import psutil
-
+import sys
 
 seed_value = 272727
 np.random.seed(seed_value)
@@ -50,9 +50,16 @@ split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine 
 average_score = False  # Do you want per image scores or average over all views
 clean_with_pvas = False  # Will keep only patients in the clean pvas datasheet
 remove_priors = True  # Will the dataset filter out priors
-use_priors = True
+use_priors = False
 if use_priors:
     remove_priors = False
+
+config = int(sys.argv[1]) - 1
+outlier_configs = []
+for threshold in [2, 6, 10, 14, 18, 22, 26, 30]:
+    for method in ['remove_patient', 'remove_image', 'replace_with_avg']:
+        outlier_configs.append(f'outlier_processed_by_{method}_threshold_{threshold}.csv')
+csv_name = outlier_configs[config]
 
 vas_or_vbd = 'vas'
 
@@ -62,22 +69,18 @@ priors_csv = 'PROCAS_matched_priors_v2.csv'
 csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
-    save_dir = '/mnt/iusers01/ct01/j16252at/scratch/breast_imaging_ML/processed_data'
-    if use_priors:
-        save_name = 'priors'
-    else:
-        save_name = 'procas_threshold'
+    save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
     save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
-    save_name = 'local'
-if vas_or_vbd == 'vas':
-    if use_priors:
-        csv_name = priors_csv
-    else:
-        csv_name = 'pvas_data_sheet.csv'
-else:
-    csv_name = 'PROCAS_Volpara_dirty.csv'
+save_name = csv_name[:-4]
+# if vas_or_vbd == 'vas':
+#     if use_priors:
+#         csv_name = priors_csv
+#     else:
+#         csv_name = 'pvas_data_sheet.csv'
+# else:
+#     csv_name = 'PROCAS_Volpara_dirty.csv'
 priors_data = pd.read_csv(os.path.join(csv_directory, priors_csv), sep=',')
 
 if by_patient:
@@ -104,7 +107,8 @@ else:
     if csf:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED'
     else:
-        image_directory = 'Z:/PROCAS_ALL_PROCESSED'
+        # image_directory = 'Z:/PROCAS_ALL_PROCESSED'
+        image_directory = 'D:/priors_data/raw'
     image_type_id = 'ASSURE_PROCESSED_ANON_ID'
     save_name += '_processed'
 procas_ids = procas_data[image_type_id]
@@ -156,30 +160,37 @@ else:
         regression_target_data['R_CC'] = procas_data['vbd_R_CC']
 
 # save patient_ids which have a regression target
+# id_target_dict = {}
+# for image_type in regression_target_data:
+#     id_target_dict[image_type] = {}
+#     for id, target in zip(procas_ids, regression_target_data[image_type]):
+#         if not np.isnan(id) and not np.isnan(target) and target >= 0:
+#             if "{:05}".format(int(id)) in selected_ids:
+#                 id_target_dict[image_type]["{:05}".format(int(id))] = target
 id_target_dict = {}
 for image_type in regression_target_data:
     id_target_dict[image_type] = {}
     for id, target in zip(procas_ids, regression_target_data[image_type]):
-        if not np.isnan(id) and not np.isnan(target) and target >= 0:
-            if "{:05}".format(int(id)) in selected_ids:
-                id_target_dict[image_type]["{:05}".format(int(id))] = target
+        if "{:05}".format(int(id)) in selected_ids:
+            id_target_dict[image_type]["{:05}".format(int(id))] = target
 
 # Find common IDs across all image types
-common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
-for image_type, ids in id_target_dict.items():
-    common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
-
-# Additional filtering based on 'filter_priors'
-if clean_with_pvas:
-    # If filtering exclusion, keep shared keys in 'clean_pvas_data' from 'common_ids'
-    common_ids &= clean_pvas_ids
-# Additional filtering based on priors
-if remove_priors:
-    common_ids -= priors_ids
-
-# Apply the final set of 'common_ids' to filter 'id_target_dict'
-for image_type in id_target_dict:
-    id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
+# common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
+# for image_type, ids in id_target_dict.items():
+#     if image_type in ['L_MLO', 'R_MLO', 'L_CC', 'R_CC']:
+#         common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
+#
+# # Additional filtering based on 'filter_priors'
+# if clean_with_pvas:
+#     # If filtering exclusion, keep shared keys in 'clean_pvas_data' from 'common_ids'
+#     common_ids &= clean_pvas_ids
+# # Additional filtering based on priors
+# if remove_priors:
+#     common_ids -= priors_ids
+#
+# # Apply the final set of 'common_ids' to filter 'id_target_dict'
+# for image_type in id_target_dict:
+#     id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
 
 # processed_dataset_save_location = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
 processed_dataset_save_location = os.path.join(save_dir, save_name, '.pth')
@@ -352,12 +363,8 @@ def process_images(parent_directory, patient_dir, snapshot):
         if not by_patient:
             for p_i, i_f, v, s in zip(preprocessed_images, image_files, all_views, all_sides):
                 target_value = id_target_dict[s+'_'+v][patient_dir[-5:]]
-                if not use_priors:
-                    target_value_r1 = id_target_dict[s + '_' + v + '-1'][patient_dir[-5:]]
-                    target_value_r2 = id_target_dict[s + '_' + v + '-2'][patient_dir[-5:]]
-                else:
-                    target_value_r1 = 0
-                    target_value_r2 = 0
+                target_value_r1 = id_target_dict[s + '_' + v + '-1'][patient_dir[-5:]]
+                target_value_r2 = id_target_dict[s + '_' + v + '-2'][patient_dir[-5:]]
                 if split_CC_and_MLO:
                     if v == 'CC':
                         dataset_entries[process_type+'_CC'].append((p_i, target_value,

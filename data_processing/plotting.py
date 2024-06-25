@@ -48,10 +48,12 @@ def plot_error_vs_vas(true_values, pred_values, title, save_location=None, min_e
 def plot_error_distribution(true_values, pred_values, title, save_location=None):
     plt.figure(figsize=(10, 6))
     errors = np.array(true_values) - np.array(pred_values)
+    err = np.mean(errors)
+    stderr = np.std(errors)
     sns.histplot(errors, bins=20, kde=False)
     plt.xlabel('Error')
     plt.ylabel('Count')
-    plt.title(title)
+    plt.title(title+' - mean error:{}+/-{}'.format(err, stderr))
     if save_location:
         plt.savefig(save_location+"/{}.png".format(title), bbox_inches='tight',
                     # dpi=200,

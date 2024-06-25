@@ -1,0 +1,13 @@
+#!/bin/bash --login
+#$ -cwd
+#$ -pe smp.pe 5
+#$ -l mem2000
+#$ -t 1-32
+
+module load apps/binapps/anaconda3/4.2.0
+
+source activate venv
+
+cd /mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/data_processing
+
+python3 dcm_outlier_processing.py ${SGE_TASK_ID}

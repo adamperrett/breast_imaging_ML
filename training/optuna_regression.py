@@ -19,19 +19,9 @@ from data_processing.data_analysis import *
 # from data_processing.dcm_processing import *
 from data_processing.plotting import *
 
-if on_CSF and not optuna_optimisation:
-    config = int(sys.argv[1]) - 1
-
-    config = configurations[config]
-    batch_size = config['batch_size']
-    op_choice = config['optimizer']
-    weighted = config['weighted']
-    transformed = config['transformed']
-    lr = config['lr']
-
 # time.sleep(60*60*14)
 print(time.localtime())
-seed_value = 272727
+seed_value = 27
 np.random.seed(seed_value)
 torch.manual_seed(seed_value)
 if torch.cuda.is_available():
@@ -46,26 +36,52 @@ def round_to_(x, sig_fig=2):
    return round(x, -int(floor(log10(abs(x))))+sig_fig)
 
 def regression_training(trial):
-    if on_CSF and optuna_optimisation:
-        lr = 3.01e-05 #trial.suggest_float('lr', 1e-6, 2e-4, log=True)
+    global base_name
+    if optuna_optimisation:
+        lr = trial.suggest_float('lr', 3e-6, 1e-4, log=True)
         op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-        batch_size = 9 #trial.suggest_int('batch_size', 5, 10)
-        dropout = 0.0588 #trial.suggest_float('dropout', 0, 0.6)
-        arch = 'vit' #trial.suggest_categorical('architecture', ['vit', 'pvas', 'resnetrans'])
+        batch_size = trial.suggest_int('batch_size', 10, 27)
+        dropout = trial.suggest_float('dropout', 0, 0.7)
+        arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
         replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
         transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
         weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
         weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
-        threshold = 1 
+        data_path = processed_dataset_file
+    else:
+        lr = 1.28e-05
+        op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
+        batch_size = 10
+        dropout = 0.196
+        arch = 'resnetrans'
+        pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
+        replicate = 0
+        transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
+        weight_samples = 0
+        weight_loss = 0
+        config = int(sys.argv[1]) - 1
+        outlier_configs = ['procas_pvas_vas_raw_base']
+        string_names = ['no_thresholding']
+        for threshold in [2, 6, 10, 14, 18, 22, 26, 30]:
+            for method in ['remove_patient', 'remove_image', 'replace_with_avg']:
+                outlier_configs.append(f'outlier_processed_by_{method}_threshold_{threshold}_pvas_vas_raw_base')
+                string_names.append('{}_th{}'.format(method, threshold))
+        data_path = outlier_configs[config]
+        base_name = base_name + '_{}'.format(string_names[config])
 
     best_model_name = '{}_lr{}x{}_{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}_th{}'.format(
         base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed,
         weight_loss, weight_samples, threshold)
 
-    print("Accessing data from", processed_dataset_path, "\nConfig", best_model_name)
+    print("Accessing data from", data_path, "\nConfig", best_model_name)
+    print(time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weight_loss, weight_samples, batch_size, False, 0, False, threshold)
+    train_loader, val_loader, test_loader = return_dataloaders(data_path, transformed,
+                                                               weight_loss, weight_samples, batch_size)
+    priors_loader = return_dataloaders(processed_priors_file, transformed,
+                                       weight_loss, weight_samples, batch_size,
+                                       only_testing=True)
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
@@ -96,18 +112,62 @@ def regression_training(trial):
     # Training parameters
     not_improved_loss = 0
     not_improved_r2 = 0
+    not_improved_r2w = 0
     best_val_loss = float('inf')
     best_test_loss = float('inf')
+    best_priors_loss = float('inf')
     best_val_l_r2 = -float('inf')
     best_test_l_r2 = -float('inf')
+    best_priors_l_r2 = -float('inf')
+    best_val_rw_r2 = -float('inf')
+    best_test_rw_r2 = -float('inf')
+    best_priors_rw_r2 = -float('inf')
+    best_val_l_r2w = -float('inf')
+    best_test_l_r2w = -float('inf')
+    best_priors_l_r2w = -float('inf')
+    best_val_r_r2w = -float('inf')
+    best_test_r_r2w = -float('inf')
+    best_priors_r_r2w = -float('inf')
     best_val_r_loss = float('inf')
     best_test_r_loss = float('inf')
+    best_priors_r_loss = float('inf')
+    best_val_rw_loss = float('inf')
+    best_test_rw_loss = float('inf')
+    best_priors_rw_loss = float('inf')
     best_val_r2 = -float('inf')
     best_test_r2 = -float('inf')
+    best_priors_r2 = -float('inf')
+    best_val_r2w = -float('inf')
+    best_test_r2w = -float('inf')
+    best_priors_r2w = -float('inf')
+    best_train_error_from_loss = 0
+    best_train_conf_int_from_loss = 0
+    best_train_error_from_r2 = 0
+    best_train_conf_int_from_r2 = 0
+    best_train_error_from_r2w = 0
+    best_train_conf_int_from_r2w = 0
+    best_val_error_from_loss = 0
+    best_val_conf_int_from_loss = 0
+    best_val_error_from_r2 = 0
+    best_val_conf_int_from_r2 = 0
+    best_val_error_from_r2w = 0
+    best_val_conf_int_from_r2w = 0
+    best_test_error_from_loss = 0
+    best_test_conf_int_from_loss = 0
+    best_test_error_from_r2 = 0
+    best_test_conf_int_from_r2 = 0
+    best_test_error_from_r2w = 0
+    best_test_conf_int_from_r2w = 0
+    best_priors_error_from_loss = 0
+    best_priors_conf_int_from_loss = 0
+    best_priors_error_from_r2 = 0
+    best_priors_conf_int_from_r2 = 0
+    best_priors_error_from_r2w = 0
+    best_priors_conf_int_from_r2w = 0
     # scheduler = ReduceLROnPlateau(optimizer, 'min', patience=int(patience/10), factor=0.9, verbose=True)
     writer = SummaryWriter(working_dir + '/results/' + best_model_name)
 
-    print("Beginning training")
+    print("Beginning training", time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
     for epoch in tqdm(range(num_epochs)):
         model.train()
@@ -128,13 +188,13 @@ def regression_training(trial):
             # Zero the parameter gradients
             optimizer.zero_grad()
 
-            is_it_mlo = torch.zeros_like(targets).float()
+            is_it_mlo = torch.zeros_like(torch.vstack([targets, targets])).T.float()
             if not split_CC_and_MLO:
                 for i in range(len(view)):
                     if 'MLO' in view[i]:
-                        is_it_mlo[i] += 1
+                        is_it_mlo[i][0] += 1
                     else:
-                        is_it_mlo[i] -= 1
+                        is_it_mlo[i][1] += 1
 
             # Forward
             print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
@@ -164,30 +224,68 @@ def regression_training(trial):
         train_loss /= len(train_loader.dataset)
         scaled_train_loss /= len(train_loader.dataset)
 
-        train_r2 = r2_score(all_targets, all_predictions, sample_weight=all_targets)
+        train_r2 = r2_score(all_targets, all_predictions)
+        train_r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
+        train_err, train_stderr, train_conf = compute_error_metrics(all_targets, all_predictions)
         # Validation
         print("Evaluating on the validation set")
-        val_loss, val_labels, val_preds, val_r2 = evaluate_model(model, val_loader, criterion,
-                                                                 inverse_standardize_targets, mean, std,
-                                                                 split_CC_and_MLO=split_CC_and_MLO)
+        val_loss, val_labels, val_preds, val_r2, val_r2w, val_err, val_conf = \
+            evaluate_model(model, val_loader, criterion,
+                           inverse_standardize_targets, mean, std,
+                           split_CC_and_MLO=split_CC_and_MLO,
+                           r2_weighting_offset=r2_weighting_offset)
         print("Evaluating on the test set")
-        test_loss, test_labels, test_preds, test_r2 = evaluate_model(model, test_loader, criterion,
-                                                                     inverse_standardize_targets, mean, std,
-                                                                     split_CC_and_MLO=split_CC_and_MLO)
+        test_loss, test_labels, test_preds, test_r2, test_r2w, test_err, test_conf = \
+            evaluate_model(model, test_loader, criterion,
+                           inverse_standardize_targets, mean, std,
+                           split_CC_and_MLO=split_CC_and_MLO,
+                           r2_weighting_offset=r2_weighting_offset)
+        print("Evaluating on the priors set")
+        priors_loss, priors_labels, priors_preds, priors_r2, priors_r2w, priors_err, priors_conf = \
+            evaluate_model(model, priors_loader, criterion,
+                           inverse_standardize_targets, mean, std,
+                           split_CC_and_MLO=split_CC_and_MLO,
+                           r2_weighting_offset=r2_weighting_offset)
         val_fig = plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, False, True)
         writer.add_figure("Validation Scatter Plot/{}".format(best_model_name), val_fig, epoch)
         test_fig = plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, False, True)
         writer.add_figure("Test Scatter Plot/{}".format(best_model_name), test_fig, epoch)
+        priors_fig = plot_scatter(priors_labels, priors_preds, "Priors Scatter Plot " + best_model_name, False, True)
+        writer.add_figure("Priors Scatter Plot/{}".format(best_model_name), priors_fig, epoch)
         print(f"Epoch {epoch + 1}/{num_epochs}, "
-              f"\nTrain Loss: {scaled_train_loss:.4f}, Val Loss: {val_loss:.4f}, Test loss: {test_loss:.4f}"
-              f"\nTrain R2: {train_r2:.4f}, Val R2: {val_r2:.4f}, Test R2: {test_r2:.4f}")
+              f"\nTrain Loss: {scaled_train_loss:.4f}, Val Loss: {val_loss:.4f}, "
+              f"Test loss: {test_loss:.4f}, Priors loss: {priors_loss:.4f}"
+              f"\nTrain R2: {train_r2:.4f}, Val R2: {val_r2:.4f}, "
+              f"Test R2: {test_r2:.4f}, Priors R2: {priors_r2:.4f}"
+              f"\nTrain R2w: {train_r2w:.4f}, Val R2w: {val_r2w:.4f}, "
+              f"Test R2w: {test_r2w:.4f}, Priors R2w: {priors_r2w:.4f}")
 
         writer.add_scalar('Loss/Train', scaled_train_loss, epoch)
         writer.add_scalar('R2/Train', train_r2, epoch)
+        writer.add_scalar('R2 weighted/Train', train_r2w, epoch)
+        writer.add_scalar('R2/Train', train_r2, epoch)
         writer.add_scalar('Loss/Validation', val_loss, epoch)
         writer.add_scalar('R2/Validation', val_r2, epoch)
+        writer.add_scalar('R2 weighted/Validation', val_r2w, epoch)
+        writer.add_scalar('Error/Mean error', train_err, epoch)
+        writer.add_scalar('Error/Confidence interval', train_conf, epoch)
         writer.add_scalar('Loss/Test', test_loss, epoch)
         writer.add_scalar('R2/Test', test_r2, epoch)
+        writer.add_scalar('R2 weighted/Test', test_r2w, epoch)
+        writer.add_scalar('Error/Mean error', train_err, epoch)
+        writer.add_scalar('Error/Confidence interval', train_conf, epoch)
+        writer.add_scalar('Loss/Priors', priors_loss, epoch)
+        writer.add_scalar('R2/Priors', priors_r2, epoch)
+        writer.add_scalar('R2 weighted/Priors', priors_r2w, epoch)
+
+        writer.add_scalar('Error/Mean error training', train_err, epoch)
+        writer.add_scalar('Error/Confidence interval training', train_conf, epoch)
+        writer.add_scalar('Error/Mean error validation', val_err, epoch)
+        writer.add_scalar('Error/Confidence interval validation', val_conf, epoch)
+        writer.add_scalar('Error/Mean error testing', test_err, epoch)
+        writer.add_scalar('Error/Confidence interval testing', test_conf, epoch)
+        writer.add_scalar('Error/Mean error priors', priors_err, epoch)
+        writer.add_scalar('Error/Confidence interval priors', priors_conf, epoch)
 
         if on_CSF and optuna_optimisation:
             for attempt in range(40):
@@ -206,30 +304,89 @@ def regression_training(trial):
         if val_r2 > best_val_r2:
             best_val_r2 = val_r2
             best_test_r2 = test_r2
+            best_priors_r2 = priors_r2
             best_val_r_loss = val_loss
             best_test_r_loss = test_loss
+            best_priors_r_loss = priors_loss
+            best_val_r_r2w = val_r2w
+            best_test_r_r2w = test_r2w
+            best_priors_r_r2w = priors_r2w
+            best_train_error_from_r2 = train_err
+            best_train_conf_int_from_r2 = train_conf
+            best_val_error_from_r2 = val_err
+            best_val_conf_int_from_r2 = val_conf
+            best_test_error_from_r2 = test_err
+            best_test_conf_int_from_r2 = test_conf
+            best_priors_error_from_r2 = priors_err
+            best_priors_conf_int_from_r2 = priors_conf
             not_improved_r2 = 0
             print("Validation R2 improved. Saving best_model.")
-            torch.save(model.state_dict(), working_dir + '/../models/r_' + best_model_name)
+            torch.save(model.state_dict(), working_dir + '/../models/rw_' + best_model_name)
         else:
             not_improved_r2 += 1
+        if val_r2w > best_val_r2w:
+            best_val_r2w = val_r2w
+            best_test_r2w = test_r2w
+            best_priors_r2w = priors_r2w
+            best_val_rw_loss = val_loss
+            best_test_rw_loss = test_loss
+            best_priors_rw_loss = priors_loss
+            best_val_rw_r2 = val_r2
+            best_test_rw_r2 = test_r2
+            best_priors_rw_r2 = priors_r2
+            best_train_error_from_r2w = train_err
+            best_train_conf_int_from_r2w = train_conf
+            best_val_error_from_r2w = val_err
+            best_val_conf_int_from_r2w = val_conf
+            best_test_error_from_r2w = test_err
+            best_test_conf_int_from_r2w = test_conf
+            best_priors_error_from_r2w = priors_err
+            best_priors_conf_int_from_r2w = priors_conf
+            not_improved_r2w = 0
+            print("Validation R2 weighted improved. Saving best_model.")
+            torch.save(model.state_dict(), working_dir + '/../models/r_' + best_model_name)
+        else:
+            not_improved_r2w += 1
         # Check early stopping
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_test_loss = test_loss
+            best_priors_loss = priors_loss
             best_val_l_r2 = val_r2
             best_test_l_r2 = test_r2
+            best_priors_l_r2 = priors_r2
+            best_val_l_r2w = val_r2w
+            best_test_l_r2w = test_r2w
+            best_priors_l_r2w = priors_r2w
+            best_train_error_from_loss = train_err
+            best_train_conf_int_from_loss = train_conf
+            best_val_error_from_loss = val_err
+            best_val_conf_int_from_loss = val_conf
+            best_test_error_from_loss = test_err
+            best_test_conf_int_from_loss = test_conf
+            best_priors_error_from_loss = priors_err
+            best_priors_conf_int_from_loss = priors_conf
             not_improved_loss = 0
             print("Validation loss improved. Saving best_model.")
             torch.save(model.state_dict(), working_dir + '/../models/l_' + best_model_name)
         else:
             not_improved_loss += 1
         print(f"From best val loss at epoch {epoch - not_improved_loss}:\n "
-              f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f} val r2: {best_val_l_r2:.4f} test r2 {best_test_l_r2:.4f}")
+              f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f} priors loss {best_priors_loss:.4f} "
+              f"val r2: {best_val_l_r2:.4f} test r2 {best_test_l_r2:.4f} priors r2 {best_priors_l_r2:.4f}"
+              f"val r2w: {best_val_l_r2w:.4f} test r2w {best_test_l_r2w:.4f} priors r2w {best_priors_l_r2w:.4f}")
         print(f"From best val R2 at epoch {epoch - not_improved_r2}:\n "
-              f"val loss: {best_val_r_loss:.4f} test loss {best_test_r_loss:.4f} val r2: {best_val_r2:.4f} test r2 {best_test_r2:.4f}")
+              f"val loss: {best_val_r_loss:.4f} test loss {best_test_r_loss:.4f} priors loss {best_priors_r_loss:.4f} "
+              f"val r2: {best_val_r2:.4f} test r2 {best_test_r2:.4f} priors r2 {best_priors_r2:.4f}"
+              f"val r2w: {best_val_r_r2w:.4f} test r2w {best_test_r_r2w:.4f} priors r2w {best_priors_r_r2w:.4f}")
+        print(f"From best val R2w at epoch {epoch - not_improved_r2w}:\n "
+              f"val loss: {best_val_rw_loss:.4f} test loss {best_test_rw_loss:.4f} priors loss {best_priors_rw_loss:.4f} "
+              f"val r2: {best_val_rw_r2:.4f} test r2 {best_test_rw_r2:.4f} priors r2 {best_priors_rw_r2:.4f}"
+              f"val r2w: {best_val_r2w:.4f} test r2w {best_test_r2w:.4f} priors r2w {best_priors_r2w:.4f}")
         if improving_loss_or_r2 == 'r2':
             time_since_improved = not_improved_r2
+        elif improving_loss_or_r2 == 'r2w':
+            time_since_improved = not_improved_r2w
         else:
             time_since_improved = not_improved_loss
         if time_since_improved >= patience:
@@ -238,12 +395,56 @@ def regression_training(trial):
 
         writer.add_scalar('Loss/Best Validation Loss from Loss', best_val_loss, epoch)
         writer.add_scalar('Loss/Best Validation Loss from R2', best_val_r_loss, epoch)
+        writer.add_scalar('Loss/Best Validation Loss from R2w', best_val_rw_loss, epoch)
         writer.add_scalar('R2/Best Validation R2 from R2', best_val_r2, epoch)
         writer.add_scalar('R2/Best Validation R2 from Loss', best_val_l_r2, epoch)
+        writer.add_scalar('R2/Best Validation R2 from R2w', best_val_rw_r2, epoch)
+        writer.add_scalar('R2w/Best Validation R2w from R2', best_val_r_r2w, epoch)
+        writer.add_scalar('R2w/Best Validation R2w from Loss', best_val_l_r2w, epoch)
+        writer.add_scalar('R2w/Best Validation R2w from R2w', best_val_r2w, epoch)
         writer.add_scalar('Loss/Best Test Loss from Loss', best_test_loss, epoch)
         writer.add_scalar('Loss/Best Test Loss from R2', best_test_r_loss, epoch)
+        writer.add_scalar('Loss/Best Test Loss from R2w', best_test_rw_loss, epoch)
         writer.add_scalar('R2/Best Test R2 from R2', best_test_r2, epoch)
         writer.add_scalar('R2/Best Test R2 from Loss', best_test_l_r2, epoch)
+        writer.add_scalar('R2/Best Test R2 from R2w', best_test_rw_r2, epoch)
+        writer.add_scalar('R2w/Best Test R2w from R2', best_test_r_r2w, epoch)
+        writer.add_scalar('R2w/Best Test R2w from Loss', best_test_l_r2w, epoch)
+        writer.add_scalar('R2w/Best Test R2w from R2w', best_test_r_r2w, epoch)
+        writer.add_scalar('Loss/Best Priors Loss from Loss', best_priors_loss, epoch)
+        writer.add_scalar('Loss/Best Priors Loss from R2', best_priors_r_loss, epoch)
+        writer.add_scalar('Loss/Best Priors Loss from R2w', best_priors_rw_loss, epoch)
+        writer.add_scalar('R2/Best Priors R2 from R2', best_priors_r2, epoch)
+        writer.add_scalar('R2/Best Priors R2 from Loss', best_priors_l_r2, epoch)
+        writer.add_scalar('R2/Best Priors R2 from R2w', best_priors_rw_r2, epoch)
+        writer.add_scalar('R2w/Best Priors R2w from R2', best_priors_r_r2w, epoch)
+        writer.add_scalar('R2w/Best Priors R2w from Loss', best_priors_l_r2w, epoch)
+        writer.add_scalar('R2w/Best Priors R2w from R2w', best_priors_r2w, epoch)
+
+        writer.add_scalar('Best Error from loss/Mean error training', best_train_error_from_loss, epoch)
+        writer.add_scalar('Best Error from loss/Confidence interval training', best_train_conf_int_from_loss, epoch)
+        writer.add_scalar('Best Error from loss/Mean error validation', best_val_error_from_loss, epoch)
+        writer.add_scalar('Best Error from loss/Confidence interval validation', best_val_conf_int_from_loss, epoch)
+        writer.add_scalar('Best Error from loss/Mean error testing', best_test_error_from_loss, epoch)
+        writer.add_scalar('Best Error from loss/Confidence interval testing', best_test_conf_int_from_loss, epoch)
+        writer.add_scalar('Best Error from loss/Mean error priors', best_priors_error_from_loss, epoch)
+        writer.add_scalar('Best Error from loss/Confidence interval priors', best_priors_conf_int_from_loss, epoch)
+        writer.add_scalar('Best Error from r2/Mean error training', best_train_error_from_r2, epoch)
+        writer.add_scalar('Best Error from r2/Confidence interval training', best_train_conf_int_from_r2, epoch)
+        writer.add_scalar('Best Error from r2/Mean error validation', best_val_error_from_r2, epoch)
+        writer.add_scalar('Best Error from r2/Confidence interval validation', best_val_conf_int_from_r2, epoch)
+        writer.add_scalar('Best Error from r2/Mean error testing', best_test_error_from_r2, epoch)
+        writer.add_scalar('Best Error from r2/Confidence interval testing', best_test_conf_int_from_r2, epoch)
+        writer.add_scalar('Best Error from r2/Mean error priors', best_priors_error_from_r2, epoch)
+        writer.add_scalar('Best Error from r2/Confidence interval priors', best_priors_conf_int_from_r2, epoch)
+        writer.add_scalar('Best Error from r2w/Mean error training', best_train_error_from_r2w, epoch)
+        writer.add_scalar('Best Error from r2w/Confidence interval training', best_train_conf_int_from_r2w, epoch)
+        writer.add_scalar('Best Error from r2w/Mean error validation', best_val_error_from_r2w, epoch)
+        writer.add_scalar('Best Error from r2w/Confidence interval validation', best_val_conf_int_from_r2w, epoch)
+        writer.add_scalar('Best Error from r2w/Mean error testing', best_test_error_from_r2w, epoch)
+        writer.add_scalar('Best Error from r2w/Confidence interval testing', best_test_conf_int_from_r2w, epoch)
+        writer.add_scalar('Best Error from r2w/Mean error priors', best_priors_error_from_r2w, epoch)
+        writer.add_scalar('Best Error from r2w/Confidence interval priors', best_priors_conf_int_from_r2w, epoch)
 
         # scheduler.step(val_loss)
 
@@ -258,33 +459,63 @@ def regression_training(trial):
 
     # Evaluating on all datasets: train, val, test
     print("Final evaluation on the train set")
-    train_loss, train_labels, train_preds, train_r2 = evaluate_model(model, train_loader, criterion,
-                                                                     inverse_standardize_targets, mean, std,
-                                                                     split_CC_and_MLO=split_CC_and_MLO)
+    train_loss, train_labels, train_preds, train_r2, train_r2w, train_err, train_conf = \
+        evaluate_model(model, train_loader, criterion,
+                       inverse_standardize_targets, mean, std,
+                       split_CC_and_MLO=split_CC_and_MLO,
+                       r2_weighting_offset=r2_weighting_offset)
     print("Final evaluation on the validation set")
-    val_loss, val_labels, val_preds, val_r2 = evaluate_model(model, val_loader, criterion, inverse_standardize_targets,
-                                                             mean, std, split_CC_and_MLO=split_CC_and_MLO)
+    val_loss, val_labels, val_preds, val_r2, val_r2w, val_err, val_conf = \
+        evaluate_model(model, val_loader, criterion,
+                       inverse_standardize_targets,
+                       mean, std, split_CC_and_MLO=split_CC_and_MLO,
+                       r2_weighting_offset=r2_weighting_offset)
     print("Final evaluation on the test set")
-    test_loss, test_labels, test_preds, test_r2 = evaluate_model(model, test_loader, criterion, inverse_standardize_targets,
-                                                                 mean, std, split_CC_and_MLO=split_CC_and_MLO)
+    test_loss, test_labels, test_preds, test_r2, test_r2w, test_err, test_conf = \
+        evaluate_model(model, test_loader, criterion,
+                       inverse_standardize_targets,
+                       mean, std, split_CC_and_MLO=split_CC_and_MLO,
+                       r2_weighting_offset=r2_weighting_offset)
+    print("Final evaluation on the priors set")
+    priors_loss, priors_labels, priors_preds, priors_r2, priors_r2w, priors_err, priors_conf = \
+        evaluate_model(model, priors_loader, criterion,
+                       inverse_standardize_targets,
+                       mean, std, split_CC_and_MLO=split_CC_and_MLO,
+                       r2_weighting_offset=r2_weighting_offset)
 
     # R2 Scores
     print(f"Train R2 Score: {train_r2:.4f}")
+    print(f"Train R2w Score: {train_r2w:.4f}")
     print(f"Train Loss: {train_loss:.4f}")
+    print(f"Train Error: {train_err:.4f}")
+    print(f"Train Confidence interval: {train_conf:.4f}")
     print(f"Validation R2 Score: {val_r2:.4f}")
+    print(f"Validation R2w Score: {val_r2w:.4f}")
     print(f"Validation Loss: {val_loss:.4f}")
+    print(f"Validation Error: {val_err:.4f}")
+    print(f"Validation Confidence interval: {val_conf:.4f}")
     print(f"Test R2 Score: {test_r2:.4f}")
+    print(f"Test R2w Score: {test_r2w:.4f}")
     print(f"Test Loss: {test_loss:.4f}")
+    print(f"Test Error: {test_err:.4f}")
+    print(f"Test Confidence interval: {test_conf:.4f}")
+    print(f"Priors R2 Score: {priors_r2:.4f}")
+    print(f"Priors R2w Score: {priors_r2w:.4f}")
+    print(f"Priors Loss: {priors_loss:.4f}")
+    print(f"Priors Error: {priors_err:.4f}")
+    print(f"Priors Confidence interval: {priors_conf:.4f}")
 
     # Scatter plots
     plot_scatter(train_labels, train_preds, "Train Scatter Plot " + best_model_name, working_dir + '/results/')
     plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, working_dir + '/results/')
     plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, working_dir + '/results/')
+    plot_scatter(priors_labels, priors_preds, "Priors Scatter Plot " + best_model_name, working_dir + '/results/')
 
     # Error distributions
     plot_error_vs_vas(train_labels, train_preds, "Train Error vs VAS " + best_model_name, working_dir + '/results/')
     plot_error_vs_vas(val_labels, val_preds, "Validation Error vs VAS " + best_model_name, working_dir + '/results/')
     plot_error_vs_vas(test_labels, test_preds, "Test Error vs VAS " + best_model_name, working_dir + '/results/')
+    plot_error_vs_vas(priors_labels, priors_preds, "Priors Error vs VAS " + best_model_name, working_dir + '/results/')
 
     # Error distributions
     plot_error_distribution(train_labels, train_preds, "Train Error Distribution " + best_model_name,
@@ -292,6 +523,8 @@ def regression_training(trial):
     plot_error_distribution(val_labels, val_preds, "Validation Error Distribution " + best_model_name,
                             working_dir + '/results/')
     plot_error_distribution(test_labels, test_preds, "Test Error Distribution " + best_model_name,
+                            working_dir + '/results/')
+    plot_error_distribution(priors_labels, priors_preds, "Priors Error Distribution " + best_model_name,
                             working_dir + '/results/')
 
     print("Done")
@@ -306,7 +539,8 @@ def regression_training(trial):
 
 
 if __name__ == "__main__":
-    if on_CSF:
+    if on_CSF and optuna_optimisation:
+        print("Setting up optuna optimisation", time.localtime())
         study_name = '{}_BML_optuna'.format(base_name)  # Unique identifier
         storage_url = 'sqlite:///{}.db'.format(study_name)
         if improving_loss_or_r2 == 'r2':
@@ -317,7 +551,7 @@ if __name__ == "__main__":
                                     # sampler=optuna.samplers.TPESampler,
                                     # sampler=optuna.samplers.NSGAIIISampler(population_size=30), # can do multiple objectives
                                     direction=direction, pruner=optuna.pruners.NopPruner())
-        print("Beginning optimisation")
+        print("Beginning optimisation", time.localtime())
         study.optimize(regression_training, n_trials=1)  # Each script execution does 1 trial
 
         from optuna.visualization import (
@@ -367,6 +601,6 @@ if __name__ == "__main__":
         fig.write_html(os.path.join(results_dir, "{}_intermediate_values.html".format(study_name)))
 
     else:
-        print("Running locally")
+        print("Running without optuna", time.localtime())
         _ = regression_training(None)
     print("Done")
