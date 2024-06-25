@@ -1,6 +1,8 @@
 #!/bin/bash --login
 #$ -cwd
 #$ -l nvidia_v100=2
+#$ -j y
+
 module load apps/binapps/anaconda3/2020.07
 
 source activate venv

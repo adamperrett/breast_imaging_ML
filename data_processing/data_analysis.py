@@ -23,13 +23,15 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
     if return_names:
         all_names = []
 
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     with torch.no_grad():
         for inputs, targets, _, _, file_names in tqdm(dataloader):
             nan_mask = torch.isnan(inputs)
             if torch.sum(nan_mask) > 0:
                 print("Image is corrupted during evaluation", torch.sum(torch.isnan(inputs), dim=1))
             inputs[nan_mask] = 0
-            inputs, targets = inputs.cuda(), targets
+            inputs, targets = inputs.to(device), targets
 
             is_it_mlo = torch.zeros_like(targets).float()
             if not split_CC_and_MLO:
@@ -39,7 +41,7 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
                     else:
                         is_it_mlo[i] -= 1
 
-            outputs = model.forward(inputs.unsqueeze(1), is_it_mlo.cuda()).to('cpu')
+            outputs = model.forward(inputs.unsqueeze(1)).to('cpu')
             test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
             test_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
             loss = criterion(test_outputs_original_scale, test_targets_original_scale).mean()
@@ -62,7 +64,7 @@ def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, me
         return epoch_loss, all_targets, all_predictions, r2
 
 def compute_target_statistics(dataset):
-    labels = [label for _, label, _, _ in dataset]
+    labels = [label for _, label, _, _, _, _ in dataset]
     mean = np.mean(labels)
     std = np.std(labels)
     return mean, std

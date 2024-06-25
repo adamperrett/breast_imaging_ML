@@ -11,6 +11,7 @@ parent_dir = os.path.dirname(current_path)
 sys.path.insert(0, parent_dir)
 from training.training_config import *
 from data_processing.data_analysis import *
+import pandas as pd
 
 gpu = False
 if gpu:
@@ -19,7 +20,6 @@ if gpu:
 else:
     torch.set_default_tensor_type(torch.FloatTensor)
     device = 'cpu'
-
 
 
 class MammogramDataset(Dataset):
@@ -37,8 +37,8 @@ class MammogramDataset(Dataset):
     def __getitem__(self, idx):
         if self.no_process:
             return self.dataset[idx]
-        image, label, directory, views = self.dataset[idx]
-
+        image, label, directory, views = self.dataset[idx][0:4]
+            
         if self.transform:
             transformed_image = self.transform(image.unsqueeze(0)).squeeze(0)
             image = transformed_image
@@ -47,6 +47,8 @@ class MammogramDataset(Dataset):
             return image, label, self.weights[idx], directory, views
         else:
             return image, label, (label*0)+1, directory, views
+    def saveTrainData(self, threshold):
+        pd.DataFrame(self.dataset)[[1,2,3,4,5]].to_csv('./train_set_'+threshold+'.csv')
 
 def custom_collate(batch):
     # Separate images and labels
@@ -121,9 +123,11 @@ def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
 
     return train_data, val_data, test_data
 
-def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0, only_testing=False):
+def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weighted_sampling, batch_size, vit_resize=False, seed_value=0, only_testing=False, threshold = 100):
     if only_testing:
         data = torch.load(processed_dataset_path)
+#        data_transforms = transforms.Resize(size = (384, 384))
+
         dataset = MammogramDataset(data)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                             generator=torch.Generator(device=device))
@@ -147,9 +151,19 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
         train_ratio, val_ratio, test_ratio = 0.7, 0.2, 0.1
         train_data, val_data, test_data = split_by_patient(processed_dataset_path, train_ratio, val_ratio, seed_value)
 
+        #Remove examples with a dissagreement above a threshold 
+        print()
+        print("Threshold: " + str(threshold))
+        print("Dataset len pre: " + str(len(train_data)))
+        for i in reversed(range(len(train_data))):
+            _, _, r1, r2, _, _ = train_data[i]           
+            if abs(r1 - r2) >= threshold:
+                del train_data[i]
+        print("Dataset len post: " + str(len(train_data)))
+
         # Compute weights for the training set
-        targets = [label for _, label, _, _ in train_data]
-        computed_weights = targets#compute_sample_weights(targets)
+        targets = [label for _, label,_, _, _, _ in train_data]
+        computed_weights = targets #compute_sample_weights(targets)
 
         mean, std = compute_target_statistics(train_data)
 
@@ -174,18 +188,21 @@ def return_dataloaders(processed_dataset_path, transformed, weighted_loss, weigh
     else:
        data_transforms = None
     
-    if resize:
+    if vit_resize:
         data_transforms = transforms.Resize(size = (384, 384))
 
     # Load dataset from saved path
     print("Creating Dataset")
-    targets = [label for _, label, _, _ in train_data]
+    print(train_data)
+    targets = [label for _, label, _, _, _, _ in train_data]
     if weighted_loss:
         train_dataset = MammogramDataset(train_data, transform=data_transforms, weights=targets)
     else:
         train_dataset = MammogramDataset(train_data, transform=data_transforms)
-    val_dataset = MammogramDataset(val_data)
-    test_dataset = MammogramDataset(test_data)
+    val_dataset = MammogramDataset(val_data, transform=data_transforms)
+    test_dataset = MammogramDataset(test_data, transform=data_transforms)
+
+    train_dataset.saveTrainData(str(threshold))
 
     # Create DataLoaders
     print("Creating DataLoaders for", device)

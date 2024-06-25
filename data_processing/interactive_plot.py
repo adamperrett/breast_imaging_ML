@@ -8,29 +8,31 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sklearn.metrics import mean_squared_error, r2_score
 import glob
 import pydicom as dicom
+import numpy as np
 
 # Read the CSV file
-csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
-# csv_name = 'priors_for_all.csv'
-# csv_name = 'updated_all_priors.csv'
-# csv_name = 'priors_per_image_reader_and_MAI.csv'
-# csv_name = 'PROCAS_Volpara_dirty.csv'
-# csv_name = 'volpara_priors_testing.csv'
-csv_name = 'volpara_priors_testing_weight.csv'
-# csv_name = 'average_mosaic_performance.csv'
-# csv_name = 'individual_mosaic_performance.csv'
+csv_directory = './data/'
+csv_name = 'ViT_priors_testing.csv'
 df = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
-image_dir_path = 'Z:\\PROCAS_ALL_PROCESSED\\'
+
+proc_or_raw = 'proc'
+
+if proc_or_raw == 'raw':
+    image_dir_path = '/mnt/bmh01-rds/assure/PROCAS_ALL_RAW/'
+    id_column = 'ASSURE_RAW_ID'
+else:
+    image_dir_path = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED/'
+    id_column = 'ASSURE_PROCESSED_ANON_ID'
 
 truth_labels = 'priors'
 if truth_labels == 'priors':
-    vas_csv_location = 'priors_per_image_reader_and_MAI.csv'
+    vas_csv_location = 'PROCAS_matched_priors_v2.csv'
     vas_df = pd.read_csv(os.path.join(csv_directory, vas_csv_location), sep=',')
 
 valid_data = pd.DataFrame()
 
 # add something to plot it as error vs actual + stdev bars instead
-plot_error = False
+plot_error =True 
 
 columns_to_convert = ['ave_MAI_VAS_PRO', 'ave_MAI_VAS_RAW']
 # Convert each column to numeric
@@ -64,7 +66,6 @@ def update_plot():
     wy_r2 = r2_score(valid_data[selected_x], valid_data[selected_y], sample_weight=valid_data[selected_y])
 
     error = df[selected_y] - df[selected_x]
-    import numpy as np
     stderr = np.std(error)
     aveerr = np.mean(error)
     abserr = np.mean(np.abs(error))
@@ -156,7 +157,7 @@ def onclick(event):
     foundPoints = getPointsNearest(valid_data, event.xdata, event.ydata, df[selected_x], y_values)
 
     print(foundPoints)
-    fullFoundPoints = df.iloc[foundPoints.index.values].drop_duplicates(subset=['ASSURE_PROCESSED_ANON_ID'])
+    fullFoundPoints = df.iloc[foundPoints.index.values].drop_duplicates(subset=[id_column])
     if fullFoundPoints.shape[0] <= 2:
         showDicomsInDf(fullFoundPoints)
     else:
@@ -165,12 +166,12 @@ def onclick(event):
 
 
 def showDicomsInDf(foundPoints):
-    print(image_dir_path + '*' + "{:05d}".format(int(foundPoints.ASSURE_PROCESSED_ANON_ID.values[0])) + '*')
-    patient_paths = glob.glob(image_dir_path + '*' + "{:05d}".format(int(foundPoints.ASSURE_PROCESSED_ANON_ID.values[0])) + '*')
+    print(image_dir_path + '*' + "{:05d}".format(int(foundPoints[id_column].values[0])) + '*')
+    patient_paths = glob.glob(image_dir_path + '*' + "{:05d}".format(int(foundPoints[id_column].values[0])) + '*')
     if(len(patient_paths) == 0):
         print('None found')
     for patient_path in patient_paths:
-        patient_data = vas_df.loc[vas_df['ASSURE_PROCESSED_ANON_ID'] == int(foundPoints.ASSURE_PROCESSED_ANON_ID.values[0])]
+        patient_data = vas_df.loc[vas_df[id_column] == int(foundPoints[id_column].values[0])]
 
         img_paths = sorted(os.listdir(patient_path))
 
@@ -181,33 +182,45 @@ def showDicomsInDf(foundPoints):
         ds = dicom.dcmread(patient_path + '/' + img_paths[0])
         img = ds.pixel_array.astype(float) 
         axs[0, 1].imshow(img, cmap='gray')
-        LCC_1 = patient_data['LCC-1'].values[0]
-        LCC_2 = patient_data['LCC-2'].values[0]
-        LCC_ave = patient_data['LCC'].values[0]
+        #LCC_1 = patient_data['LCC-1'].values[0]
+        #LCC_2 = patient_data['LCC-2'].values[0]
+        #LCC_ave = patient_data['LCC'].values[0]
+        LCC_1 = 0
+        LCC_2 = 0
+        LCC_ave = 0
         axs[0, 1].set_title('LCC - r₁:{} - r₂:{} - ave:{}'.format(LCC_1, LCC_2, LCC_ave))
 
         ds = dicom.dcmread(patient_path + '/' + img_paths[1])
         img = ds.pixel_array.astype(float) 
         axs[1, 1].imshow(img, cmap='gray')
-        LMLO_1 = patient_data['LMLO-1'].values[0]
-        LMLO_2 = patient_data['LMLO-2'].values[0]
-        LMLO_ave = patient_data['LMLO'].values[0]
+        #LMLO_1 = patient_data['LMLO-1'].values[0]
+        #LMLO_2 = patient_data['LMLO-2'].values[0]
+        #LMLO_ave = patient_data['LMLO'].values[0]
+        LMLO_1 = 0
+        LMLO_2 = 0
+        LMLO_ave = 0
         axs[1, 1].set_title('LMLO - r₁:{} - r₂:{} - ave:{}'.format(LMLO_1, LMLO_2, LMLO_ave))
 
         ds = dicom.dcmread(patient_path + '/' + img_paths[2])
         img = ds.pixel_array.astype(float) 
         axs[0, 0].imshow(img, cmap='gray')
-        RCC_1 = patient_data['RCC-1'].values[0]
-        RCC_2 = patient_data['RCC-2'].values[0]
-        RCC_ave = patient_data['RCC'].values[0]
+        #RCC_1 = patient_data['RCC-1'].values[0]
+        #RCC_2 = patient_data['RCC-2'].values[0]
+        #RCC_ave = patient_data['RCC'].values[0]
+        RCC_1 = 0
+        RCC_2 = 0
+        RCC_ave = 0
         axs[0, 0].set_title('RCC - r₁:{} - r₂:{} - ave:{}'.format(RCC_1, RCC_2, RCC_ave))
         
         ds = dicom.dcmread(patient_path + '/' + img_paths[3])
         img = ds.pixel_array.astype(float) 
         axs[1, 0].imshow(img, cmap='gray')
-        RMLO_1 = patient_data['RMLO-1'].values[0]
-        RMLO_2 = patient_data['RMLO-2'].values[0]
-        RMLO_ave = patient_data['RMLO'].values[0]
+        #RMLO_1 = patient_data['RMLO-1'].values[0]
+        #RMLO_2 = patient_data['RMLO-2'].values[0]
+        #RMLO_ave = patient_data['RMLO'].values[0]
+        RMLO_1 = 0
+        RMLO_2 = 0
+        RMLO_ave = 0
         axs[1, 0].set_title('RMLO - r₁:{} - r₂:{} - ave:{}'.format(RMLO_1, RMLO_2, RMLO_ave))
 
         for ax in fig.get_axes():

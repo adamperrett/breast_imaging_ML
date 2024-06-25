@@ -47,25 +47,25 @@ def round_to_(x, sig_fig=2):
 
 def regression_training(trial):
     if on_CSF and optuna_optimisation:
-        lr = trial.suggest_float('lr', 1e-6, 2e-4, log=True)
+        lr = 3.01e-05 #trial.suggest_float('lr', 1e-6, 2e-4, log=True)
         op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-        batch_size = trial.suggest_int('batch_size', 5, 29)
-        dropout = trial.suggest_float('dropout', 0, 0.6)
-        arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
+        batch_size = 9 #trial.suggest_int('batch_size', 5, 10)
+        dropout = 0.0588 #trial.suggest_float('dropout', 0, 0.6)
+        arch = 'vit' #trial.suggest_categorical('architecture', ['vit', 'pvas', 'resnetrans'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
-        replicate = trial.suggest_categorical('replicate', [0, 1])
+        replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
         transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
-        weight_samples = trial.suggest_categorical('weight_samples', [0, 1])
-        weight_loss = trial.suggest_categorical('weight_loss', [0, 1])
+        weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
+        weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
+        threshold = 1 
 
-    best_model_name = '{}_lr{}x{}_{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
+    best_model_name = '{}_lr{}x{}_{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}_th{}'.format(
         base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed,
-        weight_loss, weight_samples)
+        weight_loss, weight_samples, threshold)
 
     print("Accessing data from", processed_dataset_path, "\nConfig", best_model_name)
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed,
-                                                               weight_loss, weight_samples, batch_size)
+    train_loader, val_loader, test_loader = return_dataloaders(processed_dataset_path, transformed, weight_loss, weight_samples, batch_size, False, 0, False, threshold)
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
@@ -138,7 +138,8 @@ def regression_training(trial):
 
             # Forward
             print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-            outputs = model.forward(inputs.unsqueeze(1), is_it_mlo)  # Add channel dimension
+            #outputs = model.forward(inputs.unsqueeze(1), is_it_mlo)  # Add channel dimension
+            outputs = model.forward(inputs.unsqueeze(1))
             print("Before losses\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
             print("Before weighting\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))

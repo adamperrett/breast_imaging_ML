@@ -1,27 +1,12 @@
 import math
 import torch
-<<<<<<< HEAD
-from torch import nn 
-import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-=======
 import torch.nn as nn
->>>>>>> 294263b288548366d384d72775ab809bbce50508
 from torchvision.models import resnet34
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
+import torchvision.transforms.functional as F
 import torchvision.models as torch_models
 from transformers import ViTModel, ViTConfig
 
-<<<<<<< HEAD
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import seaborn as sns
-from sklearn.metrics import r2_score
-from skimage.transform import resize
-
-=======
->>>>>>> 294263b288548366d384d72775ab809bbce50508
 
 class Identity(nn.Module):
     def __init__(self):
@@ -83,10 +68,10 @@ class Pvas_Model(nn.Module):
         )
 
     ## Feed forward function
-    def forward(self, x, is_it_mlo):
+    def forward(self, x):
         H = self.extractor(x)
         if not self.split:
-            H = torch.vstack([H.T, is_it_mlo]).T
+            H = torch.vstack([H.T]).T
         r = self.regressor(H)
         return r
 
@@ -287,9 +272,11 @@ class ViT_Model(nn.Module):
         super().__init__()
 
         self.vit = nn.Sequential(GrayscaleToPseudoRGB(), ViTModel.from_pretrained(model_checkpoint))
+        #self.vit = ViTModel.from_pretrained(model_checkpoint)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
 
     def forward(self, x):
+        x = F.resize(x, (384, 384))
         x = self.vit(x)['last_hidden_state']
         output = self.classifier(x[:, 0, :])
 

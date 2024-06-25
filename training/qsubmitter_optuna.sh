@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Desired number of parallel jobs
-MAX_JOBS=6
+MAX_JOBS=2
 # Total number of trials you want to run
-TOTAL_TRIALS=1000
+TOTAL_TRIALS=6
 # Trials counter
 TRIALS_COUNTER=0
 

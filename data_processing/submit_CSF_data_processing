@@ -2,12 +2,9 @@
 #$ -cwd
 #$ -pe smp.pe 8 
 #$ -l mem512
-
-module load apps/binapps/anaconda3/2022.10
+module load apps/binapps/anaconda3/2020.07
 module load libs/cuda
 
 source activate venv
 
-cd /mnt/iusers01/ct01/j16252/scratch/breast_imaging_ML/data_processing
-
-python3 dcm_processing.py
+python dcm_processing.py
