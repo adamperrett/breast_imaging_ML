@@ -2,7 +2,7 @@ import sys
 
 
 num_epochs = 600
-patience = 5
+patience = 20
 improving_loss_or_r2 = 'loss'
 r2_weighting_offset = 0
 lr = 0.003
@@ -25,18 +25,22 @@ if by_patient:
 else:
     parallel_images = 0
 
-
+mosaics_processing = True
 on_CSF = True
-optuna_optimisation = False
+optuna_optimisation = True
 
 if on_CSF:
-    # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
-    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
     # data_name = 'local_pvas_vas_raw_base'
+    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
+    # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
     working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
     processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
-    data_name = 'procas_pvas_vas_raw_base'
-    base_name = 'vas_outlier_reseeding'
+    if mosaics_processing:
+        data_name = 'raw_mosaic_dataset_log'
+        base_name = 'mosaic_testing'
+    else:
+        data_name = 'procas_pvas_vas_raw_base'
+        base_name = 'vas_outlier_reseeding'
     # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
     # data_name = 'procas_pvas_vbd_processed_per_im_base'
     priors_name = 'priors_pvas_vas_raw_base'

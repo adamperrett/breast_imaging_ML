@@ -14,6 +14,57 @@ import seaborn as sns
 from sklearn.metrics import r2_score
 
 
+def evaluate_mosaic(model, dataloader, criterion, inverse_standardize_targets, mean, std,
+                   return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
+    model.eval()
+    running_loss = 0.0
+    all_targets = []
+    all_predictions = []
+    if return_names:
+        all_names = []
+
+    with torch.no_grad():
+        for inputs, targets, _, _, file_names in tqdm(dataloader):
+            nan_mask = torch.isnan(inputs)
+            if torch.sum(nan_mask) > 0:
+                print("Image is corrupted during evaluation", torch.sum(torch.isnan(inputs), dim=1))
+            inputs[nan_mask] = 0
+            inputs, targets = inputs.cuda(), targets
+
+            is_it_mlo = torch.zeros([len(file_names[0]), len(file_names), 2]).float()
+            if not split_CC_and_MLO:
+                for i in range(len(file_names[0])):
+                    for j in range(len(file_names)):
+                        if 'MLO' in file_names[j][i]:
+                            is_it_mlo[i][j][0] += 1
+                        else:
+                            is_it_mlo[i][j][1] += 1
+
+            outputs = model.forward(inputs.unsqueeze(1), is_it_mlo.cuda()).to('cpu')
+            test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
+            test_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
+            loss = criterion(test_outputs_original_scale, test_targets_original_scale).mean()
+            running_loss += loss.item() * inputs.size(0)
+
+            all_targets.extend(test_targets_original_scale.cpu().numpy())
+            all_predictions.extend(test_outputs_original_scale.cpu().numpy())
+            if return_names:
+                all_names.extend(file_names)
+
+    epoch_loss = running_loss / len(dataloader.dataset)
+    if torch.sum(torch.isnan(torch.tensor(all_targets))) > 0:
+        print("Corrupted targets")
+    if torch.sum(torch.isnan(torch.tensor(all_predictions))) > 0:
+        print("Corrupted predictions")
+    error, stderr, conf_int = compute_error_metrics(torch.tensor(all_targets), torch.tensor(all_predictions))
+    r2 = r2_score(all_targets, all_predictions)
+    r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
+    if return_names:
+        return epoch_loss, all_targets, all_predictions, r2, all_names
+    else:
+        return epoch_loss, all_targets, all_predictions, r2, r2w, error, conf_int
+
+
 def evaluate_model(model, dataloader, criterion, inverse_standardize_targets, mean, std,
                    return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
     model.eval()

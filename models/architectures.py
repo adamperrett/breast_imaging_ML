@@ -1,9 +1,83 @@
 import math
 import torch
 import torch.nn as nn
+import torchvision.models as models
 from torchvision.models import resnet34
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import torchvision.models as torch_models
+
+
+class MILPooling(nn.Module):
+    def __init__(self, feature_dim, pooling_type='mean'):
+        super(MILPooling, self).__init__()
+        self.pooling_type = pooling_type
+        self.attention_fc = nn.Sequential(
+            nn.Linear(feature_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 1)
+        )
+
+    def forward(self, features):
+        if self.pooling_type == 'mean':
+            return features.mean(dim=1)
+        elif self.pooling_type == 'max':
+            return features.max(dim=1)[0]
+        elif self.pooling_type == 'attention':
+            return self.attention_pooling(features)
+        else:
+            raise ValueError(f"Unsupported pooling type: {self.pooling_type}")
+
+    def attention_pooling(self, features):
+        # Implementing a simple attention mechanism
+        attention_weights = self.attention_fc(features)
+        attention_weights = torch.softmax(attention_weights, dim=0)
+        weighted_features = features * attention_weights
+        weighted_attention_matrix = weighted_features.sum(dim=0)
+        return weighted_attention_matrix
+
+
+class Mosaic_MIL_Model(nn.Module):
+    def __init__(self, pretrain, replicate, resnet_size, pooling_type='attention', dropout=0.5, split=True):
+        super(Mosaic_MIL_Model, self).__init__()
+
+        self.replicate = replicate
+        self.extractor = returnModel(pretrain, replicate, resnet_size)
+        if resnet_size in [18, 34]:
+            self.D = 512
+        elif resnet_size in [50, 101, 152]:
+            self.D = 2048
+        self.K = 1024  ## intermidiate
+        self.L = 512
+        self.MIL = MILPooling(self.L, pooling_type)
+        self.split = split
+        if not split:
+            self.D += 2
+
+        ## Standard regressor
+        self.regressor = nn.Sequential(
+            nn.Linear(self.D, self.K),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+            nn.Linear(self.K, self.L),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+        )
+        self.output = nn.Linear(self.L, 1)
+
+    ## Feed forward function
+    def forward(self, xs, is_it_mlos):
+        image_features = []
+        for i in range(is_it_mlos.shape[1]):
+            x, is_it_mlo = xs[:, :, i], is_it_mlos[:, i]
+            H = self.extractor(x)
+            if not self.split:
+                H = torch.hstack([H, is_it_mlo])
+            r = self.regressor(H)
+            image_features.append(r)
+        image_features = torch.stack(image_features)
+        mil = self.MIL(image_features)
+        output = self.output(mil)
+        return output
 
 
 class Identity(nn.Module):
@@ -22,13 +96,21 @@ class GrayscaleToPseudoRGB(nn.Module):
         return x.repeat(1, 3, 1, 1)  # Output shape [N, 3, H, W]
 
 
-def returnModel(pretrain, replicate):
+def returnModel(pretrain, replicate, resnet_size=50):
     """
 
     This function returns the model with the final FF layers removed
 
     """
-    model = torch_models.resnet50(pretrained=pretrain)
+    if resnet_size == 18:
+        model = models.resnet18(pretrained=pretrain)
+    elif resnet_size == 34:
+        model = models.resnet34(pretrained=pretrain)
+    elif resnet_size == 50:
+        model = models.resnet50(pretrained=pretrain)
+    else:
+        print("Not a valid resnet size")
+        Exception
     model.fc = Identity()
     if not replicate:
         model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
