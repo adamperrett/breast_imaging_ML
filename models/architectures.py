@@ -19,9 +19,9 @@ class MILPooling(nn.Module):
 
     def forward(self, features):
         if self.pooling_type == 'mean':
-            return features.mean(dim=1)
+            return features.mean(dim=0)
         elif self.pooling_type == 'max':
-            return features.max(dim=1)[0]
+            return features.max(dim=0)[0]
         elif self.pooling_type == 'attention':
             return self.attention_pooling(features)
         else:

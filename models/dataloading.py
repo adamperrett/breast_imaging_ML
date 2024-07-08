@@ -23,7 +23,7 @@ else:
 
 
 class MosaicDataset(Dataset):
-    def __init__(self, dataset, transform=None, max_n=8, weights=None, rand_select=True):
+    def __init__(self, dataset, transform=None, max_n=4, weights=None, rand_select=True):
         self.dataset = dataset
         self.transform = transform
         self.max_n = max_n
