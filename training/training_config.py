@@ -37,7 +37,7 @@ if on_CSF:
     processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     if mosaics_processing:
         data_name = 'raw_mosaic_dataset_log'
-        base_name = 'mosaic_n4_testing'
+        base_name = 'mosaic_n1_pvas_testing'
     else:
         data_name = 'procas_pvas_vas_raw_base'
         base_name = 'vas_outlier_reseeding'

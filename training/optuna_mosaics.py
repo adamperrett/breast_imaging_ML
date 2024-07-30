@@ -43,8 +43,8 @@ def regression_training(trial):
         batch_size = trial.suggest_int('batch_size', 1, 27)
         dropout = trial.suggest_float('dropout', 0, 0.7)
         # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
-        resnet_size = 18#trial.suggest_categorical('resent_size', [18, 34, 50])
-        pooling_type = trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
+        resnet_size = trial.suggest_categorical('resent_size', [18, 34, 50])
+        pooling_type = 'mean'#trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
         replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
         transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
@@ -106,7 +106,9 @@ def regression_training(trial):
     #edit cuda
     print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
     if mosaics_processing:
-        model = Mosaic_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
+        # model = Mosaic_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
+        #                          split=split_CC_and_MLO).to('cuda')
+        model = Mosaic_PVAS_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
                                  split=split_CC_and_MLO).to('cuda')
     else:
         if arch == 'pvas':

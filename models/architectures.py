@@ -80,6 +80,47 @@ class Mosaic_MIL_Model(nn.Module):
         return output
 
 
+class Mosaic_PVAS_Model(nn.Module):
+    def __init__(self, pretrain, replicate, resnet_size, pooling_type='attention', dropout=0.5, split=True):
+        super(Mosaic_PVAS_Model, self).__init__()
+
+        self.replicate = replicate
+        self.extractor = returnModel(pretrain, replicate, resnet_size)
+        if resnet_size in [18, 34]:
+            self.D = 512
+        elif resnet_size in [50, 101, 152]:
+            self.D = 2048
+        self.K = 1024  ## intermidiate
+        self.L = 512
+        self.split = split
+        if not split:
+            self.D += 2
+
+        ## Standard regressor
+        self.regressor = nn.Sequential(
+            nn.Linear(self.D, self.K),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+            nn.Linear(self.K, self.L),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+            nn.Linear(self.L, 1)
+        )
+
+    ## Feed forward function
+    def forward(self, xs, is_it_mlos):
+        predictions = 0
+        for i in range(is_it_mlos.shape[1]):
+            x, is_it_mlo = xs[:, :, i], is_it_mlos[:, i]
+            H = self.extractor(x)
+            if not self.split:
+                H = torch.hstack([H, is_it_mlo])
+            r = self.regressor(H)
+            predictions += r
+        output = predictions / is_it_mlos.shape[1]
+        return output
+
+
 class Identity(nn.Module):
     def __init__(self):
         super(Identity, self).__init__()

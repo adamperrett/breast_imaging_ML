@@ -23,7 +23,7 @@ else:
 
 
 class MosaicDataset(Dataset):
-    def __init__(self, dataset, transform=None, max_n=4, weights=None, rand_select=True):
+    def __init__(self, dataset, transform=None, max_n=1, weights=None, rand_select=True):
         self.dataset = dataset
         self.transform = transform
         self.max_n = max_n
@@ -356,7 +356,7 @@ def return_mosaic_loaders(file_name, transformed, weighted_loss, weighted_sampli
         train_data, _, _ = split_and_group_by_patient(full_processed_data_address,
                                                            1., 0, seed_value)
         data = train_data
-        dataset = MosaicDataset(data)
+        dataset = MosaicDataset(data, max_n=4)
         loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                             generator=torch.Generator(device=device))
         return loader
@@ -412,10 +412,10 @@ def return_mosaic_loaders(file_name, transformed, weighted_loss, weighted_sampli
 
     # Create Dataset
     print("Creating Dataset", time.localtime())
-    val_dataset = MosaicDataset(val_data)
+    val_dataset = MosaicDataset(val_data, max_n=4)
     if optuna_optimisation:
         train_dataset = MosaicDataset(train_data, transform=data_transforms, weights=sample_weights)
-        test_dataset = MosaicDataset(test_data)
+        test_dataset = MosaicDataset(test_data, max_n=4)
     else:
         train_data.extend(test_data)
         train_dataset = MosaicDataset(train_data, transform=data_transforms, weights=sample_weights)
