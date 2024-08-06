@@ -155,11 +155,11 @@ def returnModel(pretrain, replicate, resnet_size=50):
     model.fc = Identity()
     if not replicate:
         model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-    else:
-        model.conv1 = nn.Sequential(
-            GrayscaleToPseudoRGB(),
-            model.conv1
-        )
+    # else:
+    #     model.conv1 = nn.Sequential(
+    #         GrayscaleToPseudoRGB(),
+    #         model.conv1
+    #     )
         # model.conv1[1].in_channels = 1
     return model
 

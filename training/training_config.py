@@ -26,6 +26,7 @@ else:
     parallel_images = 0
 
 mosaics_processing = True
+combined_processing = True
 on_CSF = True
 optuna_optimisation = True
 
@@ -36,8 +37,12 @@ if on_CSF:
     working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
     processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     if mosaics_processing:
+        if combined_processing:
+            data_name_1 = 'raw_mosaic_dataset_log'
+            data_name_2 = 'procas_pvas_vas_raw_base'
+            # data_name_2 = 'priors_pvas_vas_raw_base'
         data_name = 'raw_mosaic_dataset_log'
-        base_name = 'mosaic_n1_pvas_testing'
+        base_name = 'mosaic_combined_pvas_testing'
     else:
         data_name = 'procas_pvas_vas_raw_base'
         base_name = 'vas_outlier_reseeding'

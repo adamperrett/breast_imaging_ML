@@ -1,8 +1,8 @@
 #!/bin/bash --login
 #$ -cwd
-#$ -l nvidia_v100=2
+#$ -l nvidia_a100=1
 
-module load apps/binapps/anaconda3/4.2.0
+module load apps/binapps/anaconda3/2020.07
 module load tools/env/proxy
 
 source activate venv

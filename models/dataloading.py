@@ -22,8 +22,36 @@ else:
     device = 'cpu'
 
 
-class MosaicDataset(Dataset):
+class MosaicEvaluateLoader(Dataset):
     def __init__(self, dataset, transform=None, max_n=1, weights=None, rand_select=True):
+        self.dataset = dataset
+        self.transform = transform
+        self.max_n = max_n
+        self.weights = weights
+        self.rand_select = rand_select
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        image, label, _, _, dir, views = self.dataset[idx]
+        sample = range(len(image))
+        if self.transform:
+            transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image[sample]]
+            image = transformed_image
+        else:
+            image = image[sample]
+        new_views = [views[s] for s in sample]
+
+        # If weights are provided, return them as well
+        if self.weights is not None:
+            return image, label, self.weights[idx], dir, new_views
+        else:
+            return image, label, 1, dir, new_views
+
+
+class MosaicDataset(Dataset):
+    def __init__(self, dataset, transform=None, max_n=4, weights=None, rand_select=True):
         self.dataset = dataset
         self.transform = transform
         self.max_n = max_n
@@ -356,8 +384,8 @@ def return_mosaic_loaders(file_name, transformed, weighted_loss, weighted_sampli
         train_data, _, _ = split_and_group_by_patient(full_processed_data_address,
                                                            1., 0, seed_value)
         data = train_data
-        dataset = MosaicDataset(data, max_n=4)
-        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
+        dataset = MosaicEvaluateLoader(data, max_n=4)
+        loader = DataLoader(dataset, batch_size=1, shuffle=False,
                             generator=torch.Generator(device=device))
         return loader
 
@@ -412,14 +440,14 @@ def return_mosaic_loaders(file_name, transformed, weighted_loss, weighted_sampli
 
     # Create Dataset
     print("Creating Dataset", time.localtime())
-    val_dataset = MosaicDataset(val_data, max_n=4)
+    val_dataset = MosaicEvaluateLoader(val_data, max_n=4)
     if optuna_optimisation:
         train_dataset = MosaicDataset(train_data, transform=data_transforms, weights=sample_weights)
-        test_dataset = MosaicDataset(test_data, max_n=4)
+        test_dataset = MosaicEvaluateLoader(test_data, max_n=4)
     else:
         train_data.extend(test_data)
         train_dataset = MosaicDataset(train_data, transform=data_transforms, weights=sample_weights)
-        test_dataset = MosaicDataset(test_data[-10:])
+        test_dataset = MosaicEvaluateLoader(test_data[-10:])
 
     # Create DataLoaders
     print("Creating DataLoaders for", device, time.localtime())
@@ -435,9 +463,9 @@ def return_mosaic_loaders(file_name, transformed, weighted_loss, weighted_sampli
         else:
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
                                       generator=torch.Generator(device=device))
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate,
                                 generator=torch.Generator(device=device))
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate,
                                  generator=torch.Generator(device=device))
     else:
         if weighted_sampling:
@@ -450,9 +478,96 @@ def return_mosaic_loaders(file_name, transformed, weighted_loss, weighted_sampli
         else:
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                                       generator=torch.Generator(device=device))
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False,
                                 generator=torch.Generator(device=device))
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False,
+                                 generator=torch.Generator(device=device))
+
+    return train_loader, val_loader, test_loader
+
+def return_combined_loaders(file_name_1, file_name_2, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0,
+                       only_testing=False):
+    print("Beginning data loading", time.localtime())
+
+    full_processed_data_address_1 = os.path.join(processed_dataset_path, file_name_1+'.pth')
+    full_processed_data_address_2 = os.path.join(processed_dataset_path, file_name_2+'.pth')
+
+    print(f"Data being collected = {file_name_1} and {file_name_2} from {processed_dataset_path}")
+    print(time.localtime())
+    print("Processing data for the first time", time.localtime())
+    # Splitting the dataset
+    train_ratio, val_ratio, test_ratio = 0.7, 0.15, 0.15
+    train_data1, val_data1, test_data1 = split_by_patient(full_processed_data_address_1,
+                                                       train_ratio, val_ratio, seed_value)
+    train_data2, val_data2, test_data2 = split_and_group_by_patient(full_processed_data_address_2,
+                                                       train_ratio, val_ratio, seed_value)
+    train_data = train_data1 + train_data2
+    val_data = val_data1 + val_data2
+    test_data = test_data1 + test_data2
+
+    # Compute weights for the training set
+    targets = [label for _, label, _, _, _, _ in train_data]
+    computed_weights = targets  # compute_sample_weights(targets)
+
+    mean, std = compute_target_statistics(targets)
+
+    if weighted_sampling:
+        sample_weights = computed_weights
+    else:
+        sample_weights = None
+
+    if transformed:
+        # Define your augmentations
+        data_transforms = transforms.Compose([
+            transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
+            # Assuming images are PIL images; if not, you'll need to adjust or implement suitable transformations
+        ])
+    else:
+        data_transforms = None
+
+    # Create Dataset
+    print("Creating Dataset", time.localtime())
+    val_dataset = MosaicEvaluateLoader(val_data, max_n=4)
+    if optuna_optimisation:
+        train_dataset = MosaicDataset(train_data, transform=data_transforms, weights=sample_weights)
+        test_dataset = MosaicEvaluateLoader(test_data, max_n=4)
+    else:
+        train_data.extend(test_data)
+        train_dataset = MosaicDataset(train_data, transform=data_transforms, weights=sample_weights)
+        test_dataset = MosaicEvaluateLoader(test_data[-10:])
+
+    # Create DataLoaders
+    print("Creating DataLoaders for", device, time.localtime())
+    if by_patient:
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate,
+                                 generator=torch.Generator(device=device))
+    else:
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                                      generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False,
                                  generator=torch.Generator(device=device))
 
     return train_loader, val_loader, test_loader

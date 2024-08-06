@@ -44,7 +44,7 @@ def regression_training(trial):
         dropout = trial.suggest_float('dropout', 0, 0.7)
         # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
         resnet_size = trial.suggest_categorical('resent_size', [18, 34, 50])
-        pooling_type = 'mean'#trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
+        pooling_type = trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
         replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
         transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
@@ -95,8 +95,12 @@ def regression_training(trial):
     print("Accessing data from", data_path, "\nConfig", best_model_name)
     print(time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    train_loader, val_loader, test_loader = return_mosaic_loaders(data_path, transformed,
-                                                                  weight_loss, weight_samples, batch_size)
+    if not combined_processing:
+        train_loader, val_loader, test_loader = return_mosaic_loaders(data_path, transformed,
+                                                                      weight_loss, weight_samples, batch_size)
+    else:
+        train_loader, val_loader, test_loader = return_combined_loaders(data_name_1, data_name_2, transformed,
+                                                                      weight_loss, weight_samples, batch_size)
     priors_loader = return_mosaic_loaders(processed_priors_file, transformed,
                                           weight_loss, weight_samples, batch_size,
                                           only_testing=True)
@@ -106,10 +110,10 @@ def regression_training(trial):
     #edit cuda
     print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
     if mosaics_processing:
-        # model = Mosaic_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
-        #                          split=split_CC_and_MLO).to('cuda')
-        model = Mosaic_PVAS_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
+        model = Mosaic_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
                                  split=split_CC_and_MLO).to('cuda')
+        # model = Mosaic_PVAS_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
+        #                          split=split_CC_and_MLO).to('cuda')
     else:
         if arch == 'pvas':
             model = Pvas_Model(pre_trained, replicate, dropout, split=split_CC_and_MLO).to('cuda')
