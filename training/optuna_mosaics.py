@@ -43,7 +43,7 @@ def regression_training(trial):
         batch_size = trial.suggest_int('batch_size', 1, 27)
         dropout = trial.suggest_float('dropout', 0, 0.7)
         # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
-        resnet_size = trial.suggest_categorical('resent_size', [18, 34, 50])
+        resnet_size = trial.suggest_categorical('resent_size', [18, 34])#, 50])
         pooling_type = trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
         pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
         replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
