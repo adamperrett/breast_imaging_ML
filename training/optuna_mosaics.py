@@ -100,7 +100,8 @@ def regression_training(trial):
                                                                       weight_loss, weight_samples, batch_size)
     else:
         train_loader, val_loader, test_loader = return_combined_loaders(data_name_1, data_name_2, transformed,
-                                                                      weight_loss, weight_samples, batch_size)
+                                                                        weight_loss, weight_samples, batch_size,
+                                                                        only_first=True)
     priors_loader = return_mosaic_loaders(processed_priors_file, transformed,
                                           weight_loss, weight_samples, batch_size,
                                           only_testing=True)

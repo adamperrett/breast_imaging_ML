@@ -486,7 +486,7 @@ def return_mosaic_loaders(file_name, transformed, weighted_loss, weighted_sampli
     return train_loader, val_loader, test_loader
 
 def return_combined_loaders(file_name_1, file_name_2, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0,
-                       only_testing=False):
+                       only_testing=False, only_first=False):
     print("Beginning data loading", time.localtime())
 
     full_processed_data_address_1 = os.path.join(processed_dataset_path, file_name_1+'.pth')
@@ -501,9 +501,14 @@ def return_combined_loaders(file_name_1, file_name_2, transformed, weighted_loss
                                                        train_ratio, val_ratio, seed_value)
     train_data2, val_data2, test_data2 = split_and_group_by_patient(full_processed_data_address_2,
                                                        train_ratio, val_ratio, seed_value)
-    train_data = train_data1 + train_data2
-    val_data = val_data1 + val_data2
-    test_data = test_data1 + test_data2
+    if only_first:
+        train_data = train_data1
+        val_data = val_data1
+        test_data = test_data1
+    else:
+        train_data = train_data1 + train_data2
+        val_data = val_data1 + val_data2
+        test_data = test_data1 + test_data2
 
     # Compute weights for the training set
     targets = [label for _, label, _, _, _, _ in train_data]

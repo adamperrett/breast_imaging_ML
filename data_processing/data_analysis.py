@@ -158,3 +158,58 @@ def compute_sample_weights(targets, n_bins=7, only_bins=False, minv=0, maxv=2**1
     # Assign weight to each sample based on its bin
     sample_weights = bin_weights[digitized]
     return sample_weights
+
+
+def bland_altman_plot(data1, data2, *args, **kwargs):
+    """
+    Create a Bland-Altman plot.
+
+    Parameters:
+    - data1, data2: The two sets of data to be compared.
+    """
+    data1 = np.asarray(data1)
+    data2 = np.asarray(data2)
+    mean = np.mean([data1, data2], axis=0)
+    diff = data1 - data2
+    md = np.mean(diff)  # Mean of the difference
+    sd = np.std(diff, axis=0)  # Standard deviation of the difference
+
+    plt.scatter(mean, diff, *args, **kwargs)
+    plt.axhline(md, color='gray', linestyle='--')
+    plt.axhline(md + 1.96 * sd, color='gray', linestyle='--')
+    plt.axhline(md - 1.96 * sd, color='gray', linestyle='--')
+    plt.xlabel('Mean of Target and Prediction')
+    plt.ylabel('Difference (Error)')
+    plt.title('Bland-Altman Plot')
+
+
+def bland_altman_plot_multiple(data1, data2_dict, *args, **kwargs):
+    """
+    Create a Bland-Altman plot for multiple comparisons with different colors.
+
+    Parameters:
+    - data1: The reference data (e.g., targets).
+    - data2_dict: A dictionary where keys are labels and values are the data to compare (e.g., predictions, pvas).
+    """
+    data1 = np.asarray(data1)
+
+    plt.figure(figsize=(15, 9))
+
+    colors = plt.cm.get_cmap('tab10', len(data2_dict))  # Use a colormap with a different color for each item
+
+    for i, (label, data2) in enumerate(data2_dict.items()):
+        data2 = np.asarray(data2)
+        mean = np.mean([data1, data2], axis=0)
+        diff = data1 - data2
+        md = np.mean(diff)  # Mean of the difference
+        sd = np.std(diff, axis=0)  # Standard deviation of the difference
+
+        plt.scatter(mean, diff, label=label, color=colors(i), *args, **kwargs)
+        plt.axhline(md, color=colors(i), linestyle='--')
+        plt.axhline(md + 1.96 * sd, color=colors(i), linestyle='--')
+        plt.axhline(md - 1.96 * sd, color=colors(i), linestyle='--')
+
+    plt.xlabel('Mean of Target and Prediction')
+    plt.ylabel('Difference (Error)')
+    plt.legend()
+    plt.title('Bland-Altman Plot')
