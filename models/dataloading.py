@@ -497,9 +497,9 @@ def return_combined_loaders(file_name_1, file_name_2, transformed, weighted_loss
     print("Processing data for the first time", time.localtime())
     # Splitting the dataset
     train_ratio, val_ratio, test_ratio = 0.7, 0.15, 0.15
-    train_data1, val_data1, test_data1 = split_by_patient(full_processed_data_address_1,
+    train_data1, val_data1, test_data1 = split_and_group_by_patient(full_processed_data_address_1,
                                                        train_ratio, val_ratio, seed_value)
-    train_data2, val_data2, test_data2 = split_and_group_by_patient(full_processed_data_address_2,
+    train_data2, val_data2, test_data2 = split_by_patient(full_processed_data_address_2,
                                                        train_ratio, val_ratio, seed_value)
     if only_first:
         train_data = train_data1
