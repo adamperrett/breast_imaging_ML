@@ -64,140 +64,25 @@ csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
-    if use_priors:
-        save_name = 'priors'
-    else:
-        save_name = 'procas'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
     save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
-    save_name = 'local'
-if vas_or_vbd == 'vas':
-    if use_priors:
-        csv_name = priors_csv
-    else:
-        csv_name = 'pvas_data_sheet.csv'
+save_name = 'medici_preprocessed_data.pth'
+csv_name = '_vendors_grouped_Reader_1704subjects.csv'
+
+csv_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
+
+if csf:
+    image_directory = '/mnt/bmh01-rds/assure/MEDICI/MEDICI_subset'
 else:
-    csv_name = 'PROCAS_Volpara_dirty.csv'
-priors_data = pd.read_csv(os.path.join(csv_directory, priors_csv), sep=',')
-
-if by_patient:
-    save_name += '_patients'
-if creating_pvas_loader:
-    save_name += '_pvas'
-save_name += '_'+vas_or_vbd
-
-if use_priors:
-    selected_patients = pd.read_csv(os.path.join(csv_directory, priors_csv), sep=',')
-else:
-    selected_patients = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
-procas_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
-clean_pvas_data = pd.read_csv(os.path.join(csv_directory, 'pvas_data_sheet.csv'), sep=',')
-
-if raw:
-    if csf:
-        image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_RAW'
-    else:
-        # image_directory = 'Z:/PROCAS_ALL_RAW'
-        image_directory = 'D:/priors_data/raw'
-    image_type_id = 'ASSURE_RAW_ID'
-    save_name += '_raw'
-else:
-    if csf:
-        image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED'
-    else:
-        # image_directory = 'Z:/PROCAS_ALL_PROCESSED'
-        image_directory = 'D:/priors_data/raw'
-    image_type_id = 'ASSURE_PROCESSED_ANON_ID'
-    save_name += '_processed'
-procas_ids = procas_data[image_type_id]
-selected_ids = selected_patients[image_type_id]
-clean_pvas_ids = clean_pvas_data[image_type_id]
-priors_ids = priors_data[image_type_id]
-
-def format_id(id):
-    # Ensure the id is an integer and format it
-    return "{:05}".format(int(id))
-
-# Drop NaN values, then apply the formatting function
-clean_pvas_ids = set(clean_pvas_ids.dropna().apply(format_id).values)
-selected_ids = set(selected_ids.dropna().apply(format_id).values)
-priors_ids = set(priors_ids.dropna().apply(format_id).values)
-
-regression_target_data = {}
-if vas_or_vbd == 'vas':
-    if average_score or use_priors:
-        regression_target_data['L_MLO'] = procas_data['VASCombinedAvDensity']
-        regression_target_data['L_CC'] = procas_data['VASCombinedAvDensity']
-        regression_target_data['R_MLO'] = procas_data['VASCombinedAvDensity']
-        regression_target_data['R_CC'] = procas_data['VASCombinedAvDensity']
-    else:
-        regression_target_data['L_MLO'] = procas_data['LMLO']
-        regression_target_data['L_CC'] = procas_data['LCC']
-        regression_target_data['R_MLO'] = procas_data['RMLO']
-        regression_target_data['R_CC'] = procas_data['RCC']
-        regression_target_data['L_MLO-1'] = procas_data['LMLO-1']
-        regression_target_data['L_CC-1'] = procas_data['LCC-1']
-        regression_target_data['R_MLO-1'] = procas_data['RMLO-1']
-        regression_target_data['R_CC-1'] = procas_data['RCC-1']
-        regression_target_data['L_MLO-2'] = procas_data['LMLO-2']
-        regression_target_data['L_CC-2'] = procas_data['LCC-2']
-        regression_target_data['R_MLO-2'] = procas_data['RMLO-2']
-        regression_target_data['R_CC-2'] = procas_data['RCC-2']
-else:
-    if average_score:
-        save_name += '_average'
-        regression_target_data['L_MLO'] = procas_data['VBD']
-        regression_target_data['L_CC'] = procas_data['VBD']
-        regression_target_data['R_MLO'] = procas_data['VBD']
-        regression_target_data['R_CC'] = procas_data['VBD']
-    else:
-        save_name += '_per_im'
-        regression_target_data['L_MLO'] = procas_data['vbd_L_MLO']
-        regression_target_data['L_CC'] = procas_data['vbd_L_CC']
-        regression_target_data['R_MLO'] = procas_data['vbd_R_MLO']
-        regression_target_data['R_CC'] = procas_data['vbd_R_CC']
-
-# save patient_ids which have a regression target
-id_target_dict = {}
-for image_type in regression_target_data:
-    id_target_dict[image_type] = {}
-    for id, target in zip(procas_ids, regression_target_data[image_type]):
-        if not np.isnan(id) and not np.isnan(target) and target >= 0:
-            if "{:05}".format(int(id)) in selected_ids:
-                id_target_dict[image_type]["{:05}".format(int(id))] = target
-
-# Find common IDs across all image types
-common_ids = set(id_target_dict[next(iter(id_target_dict))])  # Initialize with the first image type's IDs
-for image_type, ids in id_target_dict.items():
-    common_ids &= set(ids.keys())  # Intersect with the IDs of the current image type
-
-# Additional filtering based on 'filter_priors'
-if clean_with_pvas:
-    # If filtering exclusion, keep shared keys in 'clean_pvas_data' from 'common_ids'
-    common_ids &= clean_pvas_ids
-# Additional filtering based on priors
-if remove_priors:
-    common_ids -= priors_ids
-
-# Apply the final set of 'common_ids' to filter 'id_target_dict'
-for image_type in id_target_dict:
-    id_target_dict[image_type] = {id: target for id, target in id_target_dict[image_type].items() if id in common_ids}
-
-# processed_dataset_save_location = os.path.join(csv_directory, '../datasets/priors_pvas_dataset.pth')
-processed_dataset_save_location = os.path.join(save_dir, save_name, '.pth')
-image_statistics_pre = []
-image_statistics_post = []
-no_study_type = []
-bad_study_type = []
-
+    image_directory = 'W:/Reader_study_readings_07_08_2024/dataCopy/MEDICI_subset'
 
 def preprocess_image_medici(image_path, side, format, view):
     """
     Load and preprocess the given image.
     """
     # Read the DICOM file
-    current_mammogram = pydicom.read_file('Y:/AllCases_May2024/' + image_path)
+    current_mammogram = pydicom.read_file(os.path.join(image_directory, image_path))
     ## fetch the pixel array, and Manufacturer
     mammographic_image = current_mammogram.pixel_array
     Manufacturer = current_mammogram.Manufacturer
@@ -320,271 +205,62 @@ def preprocess_image_medici(image_path, side, format, view):
     # check_image(image[0,:,:].numpy(), '7-After vendor-specific normalization')
     return image
 
-def pvas_preprocess_image(image, side, image_type, view):
-    """
-    Load and preprocess the given image. Note that GEO originally had code to also work on different pixel sizes but we didnt need to do that.
-    You may need to modify this
-    """
-    ## Read the dicom and fetch the pixel array
-    # image = pydicom.read_file(image_path).pixel_array
-
-    ## Right side mammograms are flipped
-    if side == 'R':
-        image = np.fliplr(image)
-
-    ## Find otsu cutoff threshold
-    cut_off = filters.threshold_otsu(image)
-
-    ## For RAW, apply otsu's, log and invert
-    if image_type == 'raw':
-        image = np.clip(image, 0, cut_off)
-        image = np.log(image+1)
-        image = np.amax(image) - image
-
-    ## For PROC, apply otsu's
-    elif image_type == 'processed':
-        image = np.clip(image, cut_off, np.amax(image))
-        image = (image - np.amin(image)) / (np.amax(image) - np.amin(image))
-
-    else:
-        print("incorrect type")
-
-    ## Pad images to the same size before resizing
-    padded_image = np.zeros((np.amax([2995, image.shape[0]]), np.amax([2394, image.shape[1]])))
-    padded_image[0:image.shape[0], 0:image.shape[1]] = image[:, :]
-    image = padded_image[0:2995, 0:2394]
-
-    ## Resize to this precise dimension
-    image = resize(image, (640, 512))
-
-    ## Max min normalise
-    image = image / np.amax(image)
-
-    ## Replicate accross the channels
-    image = np.stack((image, image, image), 0)
-
-    ## Normalise to 0 mean 1 s.d. These are PROCAS means (training)
-    if view == 'CC':
-        if image_type == 'processed':
-            norm = T.Normalize((0.147, 0.147, 0.147), (0.261, 0.261, 0.261))
-        elif image_type == 'raw':
-            norm = T.Normalize((0.183, 0.183, 0.183), (0.331, 0.331, 0.331))
-    elif view == 'MLO':
-        if image_type == 'processed':
-            norm = T.Normalize((0.185, 0.185, 0.185), (0.275, 0.275, 0.275))
-        elif image_type == 'raw':
-            norm = T.Normalize((0.216, 0.216, 0.216), (0.331, 0.331, 0.331))
-    else:
-        print("incorrect view")
-
-    image = torch.as_tensor(image.copy())
-    image = norm(image)
-    return image[0]
-
-def pre_process_mammograms_n_ways(mammographic_images, sides, heights, widths, image_types, process_type='standard'):
-    '''
-    :param process_type:
-        - standard = original version
-        - global = rescaled based on global maximum
-        - histo = histogram equalisation
-        - clahe = Contrast Limited Adaptive Histogram Equalization
-    '''
-    processed_images = []
-    print("Beginning processing", process_type, "images")
-    # print(heights, widths)
-    for idx, mammographic_image in enumerate(tqdm(mammographic_images)):
-        # Extract parameters for each image
-        side = sides[idx]
-        height = heights[idx]
-        width = widths[idx]
-        image_type = image_types[idx]
-
-        # Reshape and preprocess
-        if side == 'R':
-            mammographic_image = np.fliplr(mammographic_image)
-        if image_type == 'raw':
-            cut_off = mammographic_image > filters.threshold_otsu(mammographic_image)
-            cut_off = cut_off.astype(float)
-            mammographic_image = cut_off * mammographic_image
-            mammographic_image = np.log(mammographic_image+1)
-            mammographic_image = np.amax(mammographic_image) - mammographic_image
-            if process_type == 'histo':
-                mammographic_image = exposure.equalize_hist(mammographic_image, mask=cut_off)
-            elif process_type == 'clahe':
-                mammographic_image = 2.0 * (mammographic_image - np.min(mammographic_image)) / np.ptp(mammographic_image) - 1
-                mammographic_image = exposure.equalize_adapthist(mammographic_image, clip_limit=0.03)
-        padded_image = np.zeros((max(2995, mammographic_image.shape[0]), max(2394, mammographic_image.shape[1])))
-        padded_image[:mammographic_image.shape[0], :mammographic_image.shape[1]] = mammographic_image
-        mammographic_image = resize(padded_image[:2995, :2394], (10 * 64, 8 * 64))
-        mammographic_image = mammographic_image / np.amax(mammographic_image)
-        processed_images.append(mammographic_image)
-    return torch.stack([torch.from_numpy(img).float() for img in processed_images], dim=0)
-
-def process_images(parent_directory, patient_dir, snapshot):
-    if split_CC_and_MLO:
-        dataset_entries = {}
-        for p_t in process_types:
-            dataset_entries[p_t+'_CC'] = []
-            dataset_entries[p_t+'_MLO'] = []
-    else:
-        dataset_entries = {p_t: [] for p_t in process_types}
-
-    # patient_path = os.path.join(parent_directory, patient_dir)
-    patient_path = patient_dir
-    image_files = [f for f in os.listdir(patient_path) if f.endswith('.dcm')]
-
-    # Load all images for the given patient/directory
-    snapshot['loop'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()
-    dcm_files = [pydicom.dcmread(os.path.join(patient_path, f), force=True) for f in image_files]
-    if not all([hasattr(dcm, 'StudyDescription') for dcm in dcm_files]):
-        print("StudyDescription attribute missing")
-        no_study_type.append([patient_dir])#, dcm_files])
-        return None, snapshot
-    else:
-        studies = [dcm.StudyDescription for dcm in dcm_files]
-        if any(s != 'Breast Screening' and s != 'Breast screening' and s != 'BREAST SCREENING' and
-               s != 'XR MAMMOGRAM BILATERAL' and s != 'MAMMO 1 VIEW RT' and
-               s != 'BILATERAL MAMMOGRAMS 2 VIEWS' for s in studies):
-            print("Skipped because not all breast screening - studies =", studies)
-            bad_study_type.append([patient_dir, studies])#, dcm_files])
-            return None, snapshot
-    print("Appropriate study exists. Processing continuing.")
-    snapshot['dcm'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()
-    all_images = [dcm.pixel_array for dcm in dcm_files]
-    for im in all_images:
-        if np.sum(np.isnan(im)) > 0:
-            print("\nImage was corrupted by", np.sum(np.isnan(im)), "pixel(s)\n")
-            return None, snapshot
-    all_sides = ['L' if 'LCC' in f or 'LMLO' in f or 'LSIO' in f else 'R' for f in image_files]
-    all_views = ['CC' if 'CC' in f else 'MLO' for f in image_files]
-    all_heights = [img.shape[0] for img in all_images]
-    if any(num > 4000 for num in all_heights):
-        return None, snapshot
-    all_widths = [img.shape[1] for img in all_images]
-    if any(num > 4000 for num in all_widths):
-        return None, snapshot
-    all_image_types = ['raw' if ('raw' in patient_path or 'RAW' in patient_path or '_PROC' not in patient_path)
-                       else 'processed' for _ in image_files]
-
-    snapshot['process'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()
-    for process_type in process_types:
-        # copying to allow processing of the image multiple times
-        copied_images = deepcopy(all_images)
-        if not creating_pvas_loader:
-            preprocessed_images = pre_process_mammograms_n_ways(copied_images, all_sides, all_heights, all_widths,
-                                                         all_image_types, process_type=process_type)
-        else:
-            preprocessed_images = torch.stack([pvas_preprocess_image(im, side, type, view) for
-                                   im, side, type, view in
-                                   zip(copied_images, all_sides, all_image_types, all_views)]).to(torch.float32)
-        for im in preprocessed_images:
-            if torch.sum(torch.isnan(im)) > 0:
-                print("\nImage was corrupted in processing by", torch.sum(np.isnan(im)), "pixel(s)\n")
-                return None, snapshot
-        if not by_patient:
-            for p_i, i_f, v, s in zip(preprocessed_images, image_files, all_views, all_sides):
-                target_value = id_target_dict[s+'_'+v][patient_dir[-5:]]
-                if not use_priors:
-                    target_value_r1 = id_target_dict[s + '_' + v + '-1'][patient_dir[-5:]]
-                    target_value_r2 = id_target_dict[s + '_' + v + '-2'][patient_dir[-5:]]
-                else:
-                    target_value_r1 = 0
-                    target_value_r2 = 0
-                if split_CC_and_MLO:
-                    if v == 'CC':
-                        dataset_entries[process_type+'_CC'].append((p_i, target_value,
-                                                                    target_value_r1,
-                                                                    target_value_r2,
-                                                                    patient_dir, i_f))
-                    else:
-                        dataset_entries[process_type+'_MLO'].append((p_i, target_value,
-                                                                     target_value_r1,
-                                                                     target_value_r2,
-                                                                     patient_dir, i_f))
-                else:
-                    dataset_entries[process_type].append((p_i, target_value,
-                                                          target_value_r1,
-                                                          target_value_r2,
-                                                          patient_dir, i_f))
-        else:
-            #### DEPRICATED ~~~~
-            dataset_entries[process_type].append((preprocessed_images, id_target_dict['L_MLO'][patient_dir[-5:]],
-                                                  patient_dir, image_files))
-        snapshot['del'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()
-        del copied_images
-    del all_images
-    del dcm_files
-    gc.collect()
-    snapshot['end'] = psutil.Process().memory_info().rss / (1024 * 1024)#tracemalloc.take_snapshot()
-
-    previous = None
-    for stage in snapshot:
-        if previous != None:
-            stat = snapshot[stage] - snapshot[previous]#.compare_to(snapshot[previous], 'lineno')
-            # for stat in stats[:10]:
-            print(stage, stat)
-            # print('\n')
-        previous = stage
-    stat = snapshot['end'] - snapshot['start']#.compare_to(snapshot['start'], 'lineno')
-    # for stat in stats[:10]:
-    print('full', stat)
-    return dataset_entries, snapshot
-
-# This function will preprocess and zip all images and return a dataset ready for saving
-def preprocess_and_zip_all_images(parent_directory):
-    if split_CC_and_MLO:
-        dataset_entries = {}
-        for p_t in process_types:
-            dataset_entries[p_t+'_CC'] = []
-            dataset_entries[p_t+'_MLO'] = []
-    else:
-        dataset_entries = {p_t: [] for p_t in process_types}
-
-
-    all_dirs = []
-    print("Collecting directories")
-    for root, dirs, _ in tqdm(os.walk(parent_directory)):
-        for d in dirs:
-            dir_path = os.path.join(root, d)
-            all_dirs.append(dir_path)
-
-    patient_dirs = [d for d in all_dirs if d[-5:] in id_target_dict['L_MLO']]
-    patient_dirs.sort()  # Ensuring a deterministic order
-
-
-    snapshot = {'start': psutil.Process().memory_info().rss / (1024 * 1024)}#tracemalloc.take_snapshot()}
-    for p_i, patient_dir in enumerate(tqdm(patient_dirs)):
-        print("Processing", p_i, "/", len(patient_dirs), "of", save_name, "for patient", patient_dir)
-        before_func = psutil.Process().memory_info().rss / (1024 * 1024)
-        processed_images, snapshot = process_images(parent_directory, patient_dir, snapshot)
-        after_func = psutil.Process().memory_info().rss / (1024 * 1024)
-        if processed_images == None:
-            continue
-        for process_type in dataset_entries:
-            for stuff in processed_images[process_type]:
-                dataset_entries[process_type].append(stuff)
-        after_all = psutil.Process().memory_info().rss / (1024 * 1024)
-        print("over the function =", after_func - before_func, "Mb")
-        print("released from scope =", after_func - snapshot['end'], "Mb")
-        print("from saving =", after_all - after_func, "Mb")
-        print("overall =", after_all - snapshot['start'], "Mb")
-        print("per image =", (after_all - snapshot['start']) / (p_i + 1), "Mb")
-
-    return dataset_entries
-
 if __name__ == "__main__":
-    # Generate the dataset and save it
-    # if not os.path.exists(processed_dataset_save_location):
-    if not raw or creating_pvas_loader:
-        process_types = ['base']
-    # tracemalloc.start()
-    dataset_entries = preprocess_and_zip_all_images(image_directory)
-    for process_type in dataset_entries:
-        # torch.save(dataset_entries[process_type], processed_dataset_save_location[:-4]+'_'+process_type+'_otsu_1st.pth')
-        save_location_and_name = processed_dataset_save_location[:-5]+'_'+process_type+'.pth'
-        print("Saving to", save_location_and_name, "of length", len(dataset_entries[process_type]))
-        torch.save(dataset_entries[process_type], save_location_and_name)
-        # torch.save(dataset_entries[process_type], 'C:/Users/adam_/PycharmProjects/pVAS/datasets/priors_pvas_dataset.pth')
+    patient_data = {}
+    for index, row in tqdm(csv_data.iterrows(), total=len(csv_data), desc="Processing rows"):
+        patient = row.Case
+        if patient not in patient_data:
+            patient_data[patient] = {}
+        side = row.Side
+        manufacturer = row.Manufacturer
+        score = row.Score
+        time_point = row.TimePoint
+        format = 'PRO'
+        cc_path = row.CCpath
+        view = 'CC'
+        cc_image = preprocess_image_medici(cc_path, side, format, view)
+        mlo_path = row.MLOpath
+        view = 'MLO'
+        mlo_image = preprocess_image_medici(mlo_path, side, format, view)
+        patient_data[patient][time_point] = {
+            'mlo': mlo_image,
+            'cc': cc_image,
+            'score': score,
+            'manufacturer': manufacturer
+        }
+    save_location_and_name = os.path.join(save_dir, save_name)
+    print("Saving to", save_location_and_name, "with", len(patient_data), 'women')
+    torch.save(patient_data, save_location_and_name)
 
     print("Done")
 
+'''
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from skmultilearn.model_selection import MultilabelStratifiedShuffleSplit
+
+# Sample DataFrame with multiple targets (replace this with your actual data)
+# Assuming `X` is your features DataFrame and `Y` is a DataFrame of multiple target labels
+data = pd.DataFrame({
+    'feature1': [1, 2, 3, 4, 5],
+    'feature2': [6, 7, 8, 9, 10]
+})
+targets = pd.DataFrame({
+    'target1': [1, 0, 1, 0, 1],
+    'target2': [0, 1, 0, 1, 1]
+})
+
+# Initialize MultilabelStratifiedShuffleSplit
+splitter = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+
+# Perform the split
+for train_index, test_index in splitter.split(data, targets):
+    X_train, X_test = data.iloc[train_index], data.iloc[test_index]
+    y_train, y_test = targets.iloc[train_index], targets.iloc[test_index]
+
+# Display results
+print("Training features:\n", X_train)
+print("Training targets:\n", y_train)
+print("Testing features:\n", X_test)
+print("Testing targets:\n", y_test)
+'''
