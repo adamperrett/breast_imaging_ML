@@ -43,23 +43,6 @@ sns.set(style='dark')
 
 print("Reading data")
 
-raw = True  # Raw or processed data
-creating_pvas_loader = True  # if true process types makes no difference
-by_patient = False  # DEPRICATED: Put all patient images into a single data instance
-split_CC_and_MLO = False  # Create a separate dataset for CC and MLO or combine it all
-average_score = False  # Do you want per image scores or average over all views
-clean_with_pvas = False  # Will keep only patients in the clean pvas datasheet
-remove_priors = True  # Will the dataset filter out priors
-use_priors = True
-making_medici = True
-if use_priors:
-    remove_priors = False
-
-vas_or_vbd = 'vas'
-
-process_types = ['log']#, 'histo', 'clahe']  # only relevant to raw data
-priors_csv = 'PROCAS_matched_priors_v2.csv'
-
 csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
@@ -77,12 +60,18 @@ if csf:
 else:
     image_directory = 'W:/Reader_study_readings_07_08_2024/dataCopy/MEDICI_subset'
 
+failed_dycom_reads = []
+
 def preprocess_image_medici(image_path, side, format, view):
     """
     Load and preprocess the given image.
     """
     # Read the DICOM file
-    current_mammogram = pydicom.read_file(os.path.join(image_directory, image_path))
+    try:
+        current_mammogram = pydicom.read_file(os.path.join(image_directory, image_path))
+    except:
+        print("Dycom reading failed")
+        return 'fail'
     ## fetch the pixel array, and Manufacturer
     mammographic_image = current_mammogram.pixel_array
     Manufacturer = current_mammogram.Manufacturer
@@ -219,16 +208,33 @@ if __name__ == "__main__":
         cc_path = row.CCpath
         view = 'CC'
         cc_image = preprocess_image_medici(cc_path, side, format, view)
+        if cc_image == 'fail':
+            failed_dycom_reads.append([index, patient, time_point, view, cc_path])
+            print("failed reading", failed_dycom_reads[-1])
         mlo_path = row.MLOpath
         view = 'MLO'
         mlo_image = preprocess_image_medici(mlo_path, side, format, view)
-        patient_data[patient][time_point] = {
-            'mlo': mlo_image,
-            'cc': cc_image,
-            'score': score,
-            'manufacturer': manufacturer
-        }
+        if mlo_image == 'fail':
+            failed_dycom_reads.append([index, patient, time_point, view, mlo_path])
+            print("failed reading", failed_dycom_reads[-1])
+        if cc_image == 'fail' or mlo_image == 'fail':
+            patient_data[patient][time_point] = {
+                'mlo': mlo_image,
+                'cc': cc_image,
+                'score': score,
+                'manufacturer': manufacturer,
+                'failed': True
+            }
+        else:
+            patient_data[patient][time_point] = {
+                'mlo': mlo_image,
+                'cc': cc_image,
+                'score': score,
+                'manufacturer': manufacturer,
+                'failed': False
+            }
     save_location_and_name = os.path.join(save_dir, save_name)
+    print("All failed reads:\n", failed_dycom_reads)
     print("Saving to", save_location_and_name, "with", len(patient_data), 'women')
     torch.save(patient_data, save_location_and_name)
 
