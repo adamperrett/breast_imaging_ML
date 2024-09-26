@@ -69,11 +69,11 @@ def preprocess_image_medici(image_path, side, format, view):
     # Read the DICOM file
     try:
         current_mammogram = pydicom.read_file(os.path.join(image_directory, image_path))
+        mammographic_image = current_mammogram.pixel_array
     except:
         print("Dycom reading failed")
         return 'fail'
     ## fetch the pixel array, and Manufacturer
-    mammographic_image = current_mammogram.pixel_array
     Manufacturer = current_mammogram.Manufacturer
     # check_image(mammographic_image, '1-Image')
 
