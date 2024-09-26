@@ -32,15 +32,15 @@ optuna_optimisation = True
 
 if on_CSF:
     # data_name = 'local_pvas_vas_raw_base'
-    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
-    # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
-    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
+    working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
+    processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
+    # working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    # processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     if mosaics_processing:
         if combined_processing:
             data_name_2 = 'raw_mosaic_dataset_log'
-            data_name_1 = 'procas_pvas_vas_raw_base'
-            # data_name_2 = 'priors_pvas_vas_raw_base'
+            # data_name_1 = 'procas_pvas_vas_raw_base'
+            data_name_1 = 'priors_pvas_vas_raw_base'
         data_name = 'raw_mosaic_dataset_log'
         base_name = 'non_mosaic_mil_testing'
     else:
