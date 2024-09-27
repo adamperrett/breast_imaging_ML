@@ -12,6 +12,7 @@ sys.path.insert(0, parent_dir)
 from training.training_config import *
 from data_processing.data_analysis import *
 import time
+from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
 gpu = False
 if gpu:
@@ -20,6 +21,34 @@ if gpu:
 else:
     torch.set_default_tensor_type(torch.FloatTensor)
     device = 'cpu'
+
+
+class MediciLoader(Dataset):
+    def __init__(self, dataset, transform=None, by_patient_or_by_image='patient', weights=None):
+        self.dataset = dataset
+        self.transform = transform
+        self.by_patient_or_by_image = by_patient_or_by_image
+        self.weights = weights
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        if self.by_patient_or_by_image:
+        patient = self.dataset[idx]
+        sample = range(len(image))
+        if self.transform:
+            transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image[sample]]
+            image = transformed_image
+        else:
+            image = image[sample]
+        new_views = [views[s] for s in sample]
+
+        # If weights are provided, return them as well
+        if self.weights is not None:
+            return image, label, self.weights[idx], dir, new_views
+        else:
+            return image, label, 1, dir, new_views
 
 
 class MosaicEvaluateLoader(Dataset):
@@ -174,6 +203,68 @@ print("Reading data")
 
 mean = 0
 std = 0
+
+def split_by_patient_and_stratefy_by_manufacturer(dataset_path, train_ratio, val_ratio, test_ratio, seed_value=0):
+    print("Loading data to split by patient", time.localtime())
+    dataset = torch.load(dataset_path)
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed_value)
+        torch.cuda.manual_seed_all(seed_value)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    print("Grouping entries by the unique key", time.localtime())
+    patient_manufacturers = []
+    patient_list = []
+    manufactorer_index = {}
+    for patient in tqdm(dataset):
+        patient_manufacturers.append([])
+        patient_list.append(patient)
+        for timepoint in dataset[patient]:
+            manufacturer = dataset[patient][timepoint]['manufacturer']
+            if manufacturer not in manufactorer_index:
+                manufactorer_index[manufacturer] = len(manufactorer_index)
+            patient_manufacturers[-1].append(manufactorer_index[manufacturer])
+        patient_manufacturers[-1] = np.array(patient_manufacturers[-1])
+    patient_list = np.array(patient_list)
+    patient_manufacturers = np.array(patient_manufacturers)
+
+    parsed_manufactorers = []
+    for manu in patient_manufacturers:
+        zeros = [0 for i in range(len(manufactorer_index))]
+        for m in manu:
+            zeros[m] = 1
+        parsed_manufactorers.append(np.array(zeros))
+    parsed_manufactorers = np.array(parsed_manufactorers)
+
+    splitter1 = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=1-train_ratio,
+                                                 random_state=seed_value)
+    train_index, temp_index = next(splitter1.split(patient_list, parsed_manufactorers))
+    training_patients, val_test_patients = patient_list[train_index], patient_list[temp_index]
+    training_manufacturer, val_test_manufacturer = patient_manufacturers[train_index], patient_manufacturers[temp_index]
+
+    splitter1 = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=val_ratio/(val_ratio+test_ratio),
+                                                 random_state=seed_value)
+    val_index, test_index = next(splitter1.split(patient_list[temp_index], parsed_manufactorers[temp_index]))
+    val_patients, val_manufacturer = val_test_patients[val_index], val_test_manufacturer[val_index]
+    test_patients, test_manufacturer = val_test_patients[test_index], val_test_manufacturer[test_index]
+
+    # Split the patient data into train, validation, and test sets
+    train_data = {tp: dataset[tp] for tp in training_patients}
+    val_data = {vp: dataset[vp] for vp in val_patients}
+    test_data = {tp: dataset[tp] for tp in test_patients}
+    print("Splits across manufacturer:")
+    print("Training", {cl:np.sum(np.sum([[a == cl for a in b] for b in training_manufacturer]))
+                       for cl in range(len(manufactorer_index))})
+    print("Validation", {cl:np.sum([[a == cl for a in b] for b in val_manufacturer])
+                       for cl in range(len(manufactorer_index))})
+    print("Testing", {cl:np.sum([[a == cl for a in b] for b in test_manufacturer])
+                       for cl in range(len(manufactorer_index))})
+
+    return train_data, val_data, test_data
 
 def split_and_group_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
     print("Loading data to split by patient", time.localtime())
@@ -448,6 +539,114 @@ def return_mosaic_loaders(file_name, transformed, weighted_loss, weighted_sampli
         train_data.extend(test_data)
         train_dataset = MosaicDataset(train_data, transform=data_transforms, weights=sample_weights)
         test_dataset = MosaicEvaluateLoader(test_data[-10:])
+
+    # Create DataLoaders
+    print("Creating DataLoaders for", device, time.localtime())
+    if by_patient:
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate,
+                                 generator=torch.Generator(device=device))
+    else:
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                                      generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False,
+                                 generator=torch.Generator(device=device))
+
+    return train_loader, val_loader, test_loader
+
+def return_medici_loaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0,
+                       only_testing=False):
+    print("Beginning data loading", time.localtime())
+
+    full_processed_data_address = os.path.join(processed_dataset_path, file_name+'.pth')
+    if only_testing:
+        print(f"Loading data {file_name} for testing from {processed_dataset_path}")
+        print(time.localtime())
+        train_data, _, _ = split_by_patient_and_stratefy_by_manufacturer(full_processed_data_address,
+                                                           1., 0, 0, seed_value)
+        data = train_data
+        dataset = MosaicEvaluateLoader(data, max_n=4)
+        loader = DataLoader(dataset, batch_size=1, shuffle=False,
+                            generator=torch.Generator(device=device))
+        return loader
+
+    global mean, std
+
+    print(f"Data being collected = {file_name} from {processed_dataset_path}")
+    print(time.localtime())
+    save_path = os.path.join(working_dir, file_name + '_data.pth')
+    if os.path.exists(save_path):
+        print("Loading data", time.localtime())
+        data = torch.load(save_path)
+        train_data, val_data, test_data = data['train'], data['val'], data['test']
+        mean, std = data['mean'], data['std']
+        computed_weights = data['weights'] if weighted_sampling else None
+    else:
+        print("Processing data for the first time", time.localtime())
+        # Splitting the dataset
+        train_ratio, val_ratio, test_ratio = 0.7, 0.15, 0.15
+        train_data, val_data, test_data = split_by_patient_and_stratefy_by_manufacturer(
+            full_processed_data_address,
+            train_ratio, val_ratio, test_ratio, seed_value)
+
+        # Compute weights for the training set
+        targets = [patient.score for patient in train_data]
+        computed_weights = targets  # compute_sample_weights(targets)
+
+        mean, std = compute_target_statistics(targets)
+
+        print("Saving data", time.localtime())
+        torch.save({
+            'train': train_data,
+            'val': val_data,
+            'test': test_data,
+            'mean': mean,
+            'std': std,
+            'weights': computed_weights
+        },
+            save_path)
+
+    if weighted_sampling:
+        sample_weights = computed_weights
+    else:
+        sample_weights = None
+
+    if transformed:
+        # Define your augmentations
+        data_transforms = transforms.Compose([
+            transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
+            # Assuming images are PIL images; if not, you'll need to adjust or implement suitable transformations
+        ])
+    else:
+        data_transforms = None
+
+    # Create Dataset
+    print("Creating Dataset", time.localtime())
+    train_dataset = MediciLoader(train_data, transform=data_transforms, weights=sample_weights)
+    val_dataset = MediciLoader(val_data)
+    test_dataset = MediciLoader(test_data)
 
     # Create DataLoaders
     print("Creating DataLoaders for", device, time.localtime())
