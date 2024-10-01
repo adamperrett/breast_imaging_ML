@@ -25,30 +25,70 @@ else:
 
 class MediciLoader(Dataset):
     def __init__(self, dataset, transform=None, by_patient_or_by_image='patient', weights=None):
-        self.dataset = dataset
         self.transform = transform
         self.by_patient_or_by_image = by_patient_or_by_image
         self.weights = weights
+        if self.by_patient_or_by_image == 'image':
+            self.dataset = []
+            for patient in dataset:
+                for timepoint in dataset[patient]:
+                    if not dataset[patient][timepoint]['failed']:
+                        image = dataset[patient][timepoint]['mlo'][0].to(torch.float32)
+                        score = dataset[patient][timepoint]['score']
+                        manu = dataset[patient][timepoint]['manufacturer']
+                        view = 'mlo'
+                        self.dataset.append([
+                            image,
+                            score,
+                            score,  # weight by score for now
+                            patient,
+                            manu,
+                            view
+                        ])
+                        image = dataset[patient][timepoint]['cc'][0].to(torch.float32)
+                        view = 'cc'
+                        self.dataset.append([
+                            image,
+                            score,
+                            score,  # weight
+                            patient,
+                            manu,
+                            view
+                        ])
+        else:
+            self.dataset = []
+            for patient in dataset:
+                for timepoint in dataset[patient]:
+                    if not dataset[patient][timepoint]['failed']:
+                        mlo_image = dataset[patient][timepoint]['mlo'][0].to(torch.float32)
+                        cc_image = dataset[patient][timepoint]['cc'][0].to(torch.float32)
+                        images = torch.stack([mlo_image, cc_image])
+                        score = dataset[patient][timepoint]['score']
+                        manu = dataset[patient][timepoint]['manufacturer']
+                        views = ['mlo', 'cc']
+                        self.dataset.append([
+                            images,
+                            score,
+                            score,  # weight
+                            patient,
+                            manu,
+                            views
+                        ])
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        if self.by_patient_or_by_image:
         patient = self.dataset[idx]
-        sample = range(len(image))
+        image, label, weight, patient, manu, views = patient
         if self.transform:
-            transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image[sample]]
+            if self.by_patient_or_by_image == 'patient':
+                transformed_image = self.transform(image)
+            else:
+                transformed_image = [self.transform(im.unsqueeze(0)).squeeze(0) for im in image]
             image = transformed_image
-        else:
-            image = image[sample]
-        new_views = [views[s] for s in sample]
 
-        # If weights are provided, return them as well
-        if self.weights is not None:
-            return image, label, self.weights[idx], dir, new_views
-        else:
-            return image, label, 1, dir, new_views
+        return image, label, weight, patient, manu, views
 
 
 class MosaicEvaluateLoader(Dataset):
@@ -612,7 +652,13 @@ def return_medici_loaders(file_name, transformed, weighted_loss, weighted_sampli
             train_ratio, val_ratio, test_ratio, seed_value)
 
         # Compute weights for the training set
-        targets = [patient.score for patient in train_data]
+        targets = np.hstack([
+            [train_data[patient][0]['score'] for patient in train_data
+             if 0 in train_data[patient] and not train_data[patient][0]['failed']],
+            [train_data[patient][1]['score'] for patient in train_data
+             if 1 in train_data[patient] and not train_data[patient][1]['failed']],
+            [train_data[patient][3]['score'] for patient in train_data
+             if 3 in train_data[patient] and not train_data[patient][3]['failed']]])
         computed_weights = targets  # compute_sample_weights(targets)
 
         mean, std = compute_target_statistics(targets)
@@ -662,9 +708,9 @@ def return_medici_loaders(file_name, transformed, weighted_loss, weighted_sampli
         else:
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
                                       generator=torch.Generator(device=device))
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate,
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
                                 generator=torch.Generator(device=device))
-        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=custom_collate,
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
                                  generator=torch.Generator(device=device))
     else:
         if weighted_sampling:
@@ -677,9 +723,9 @@ def return_medici_loaders(file_name, transformed, weighted_loss, weighted_sampli
         else:
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                                       generator=torch.Generator(device=device))
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False,
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
                                 generator=torch.Generator(device=device))
-        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False,
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
                                  generator=torch.Generator(device=device))
 
     return train_loader, val_loader, test_loader

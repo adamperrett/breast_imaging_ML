@@ -14,6 +14,61 @@ import seaborn as sns
 from sklearn.metrics import r2_score
 
 
+def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, mean, std,
+                    num_manufacturers, manufacturer_mapping,
+                    return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
+    model.eval()
+    running_loss = 0.0
+    all_targets = []
+    all_predictions = []
+    if return_names:
+        all_names = []
+
+    with torch.no_grad():
+        for inputs, targets, weight, patient, manu, views in tqdm(dataloader):
+            nan_mask = torch.isnan(inputs)
+            if torch.sum(nan_mask) > 0:
+                print("Image is corrupted during evaluation", torch.sum(torch.isnan(inputs), dim=1))
+            inputs[nan_mask] = 0
+            inputs, targets = inputs.cuda(), targets
+
+            is_it_mlo = torch.zeros([len(views[0]), len(views), 2]).float()
+            if not split_CC_and_MLO:
+                for i in range(len(views[0])):
+                    for j in range(len(views)):
+                        if 'MLO' in views[j][i]:
+                            is_it_mlo[i][j][0] += 1
+                        else:
+                            is_it_mlo[i][j][1] += 1
+            manufacturer = torch.zeros([len(views[0]), len(views), num_manufacturers]).float().to('cuda')
+            for i in range(len(views[0])):
+                for j in range(len(views)):
+                    manufacturer[i][j] += manufacturer_mapping[manu[j]]
+
+            outputs = model.forward(inputs.unsqueeze(1), is_it_mlo.cuda(), manufacturer).to('cpu')
+            test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
+            test_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
+            loss = criterion(test_outputs_original_scale, test_targets_original_scale).mean()
+            running_loss += loss.item() * inputs.size(0)
+
+            all_targets.extend(test_targets_original_scale.cpu().numpy())
+            all_predictions.extend(test_outputs_original_scale.cpu().numpy())
+            if return_names:
+                all_names.extend(patient)
+
+    epoch_loss = running_loss / len(dataloader.dataset)
+    if torch.sum(torch.isnan(torch.tensor(all_targets))) > 0:
+        print("Corrupted targets")
+    if torch.sum(torch.isnan(torch.tensor(all_predictions))) > 0:
+        print("Corrupted predictions")
+    error, stderr, conf_int = compute_error_metrics(torch.tensor(all_targets), torch.tensor(all_predictions))
+    r2 = r2_score(all_targets, all_predictions)
+    r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
+    if return_names:
+        return epoch_loss, all_targets, all_predictions, r2, all_names
+    else:
+        return epoch_loss, all_targets, all_predictions, r2, r2w, error, conf_int
+
 def evaluate_mosaic(model, dataloader, criterion, inverse_standardize_targets, mean, std,
                    return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
     model.eval()
@@ -183,7 +238,7 @@ def bland_altman_plot(data1, data2, *args, **kwargs):
     plt.title('Bland-Altman Plot')
 
 
-def bland_altman_plot_multiple(data1, data2_dict, *args, **kwargs):
+def bland_altman_plot_multiple(title, data1, data2_dict, mean_plotting=True, font_size=16, *args, **kwargs):
     """
     Create a Bland-Altman plot for multiple comparisons with different colors.
 
@@ -195,21 +250,38 @@ def bland_altman_plot_multiple(data1, data2_dict, *args, **kwargs):
 
     plt.figure(figsize=(15, 9))
 
+    # Set font size for all text elements
+    plt.rcParams.update({'font.size': font_size})
+
     colors = plt.cm.get_cmap('tab10', len(data2_dict))  # Use a colormap with a different color for each item
 
+    print("Evaluating", title)
     for i, (label, data2) in enumerate(data2_dict.items()):
         data2 = np.asarray(data2)
-        mean = np.mean([data1, data2], axis=0)
-        diff = data1 - data2
+        diff = data2 - data1
+        if mean_plotting:
+            mean = np.mean([data1, data2], axis=0)
+        else:
+            mean = data1
         md = np.mean(diff)  # Mean of the difference
         sd = np.std(diff, axis=0)  # Standard deviation of the difference
 
         plt.scatter(mean, diff, label=label, color=colors(i), *args, **kwargs)
-        plt.axhline(md, color=colors(i), linestyle='--')
+        plt.axhline(md, color=colors(i), linestyle='-')
         plt.axhline(md + 1.96 * sd, color=colors(i), linestyle='--')
         plt.axhline(md - 1.96 * sd, color=colors(i), linestyle='--')
-
-    plt.xlabel('Mean of Target and Prediction')
-    plt.ylabel('Difference (Error)')
+        print("For", label, "\tmean:", md, "\tCI:", 1.96 * sd)
+    if mean_plotting:
+        plt.xlabel('Mean of Target and Prediction')
+    else:
+        plt.xlabel('Target Value')
+    plt.ylabel('Error (Predicted - Target)')
+    plt.ylim([-48, 48])
     plt.legend()
-    plt.title('Bland-Altman Plot')
+    plt.title(title)
+
+    # Reset rcParams after plotting to avoid affecting other plots
+    plt.rcParams.update({'font.size': plt.rcParamsDefault['font.size']})
+
+# Example usage with custom font size
+# bland_altman_plot_multiple(data1, data2_dict, font_size=18)

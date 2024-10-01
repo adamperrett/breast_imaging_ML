@@ -37,89 +37,52 @@ def round_to_(x, sig_fig=2):
 
 def regression_training(trial):
     global base_name
-    if mosaics_processing:
-        lr = trial.suggest_float('lr', 3e-6, 1e-3, log=True)
-        op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-        batch_size = trial.suggest_int('batch_size', 1, 27)
-        dropout = trial.suggest_float('dropout', 0, 0.7)
-        # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
-        resnet_size = trial.suggest_categorical('resent_size', [18, 34])#, 50])
-        pooling_type = trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
-        pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
-        replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
-        transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
-        weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
-        weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
-        data_path = processed_dataset_file
-        best_model_name = '{}_lr{}x{}_{}{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
-            base_name, round_to_(lr), batch_size, resnet_size, pooling_type, pre_trained,
-            replicate, round_to_(dropout), op_choice, transformed, weight_loss, weight_samples)
-    else:
-        if optuna_optimisation:
-            lr = trial.suggest_float('lr', 3e-6, 1e-4, log=True)
-            op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-            batch_size = trial.suggest_int('batch_size', 10, 27)
-            dropout = trial.suggest_float('dropout', 0, 0.7)
-            arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
-            pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
-            replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
-            transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
-            weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
-            weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
-            data_path = processed_dataset_file
-        else:
-            lr = 1.28e-05
-            op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-            batch_size = 10
-            dropout = 0.196
-            arch = 'resnetrans'
-            pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
-            replicate = 0
-            transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
-            weight_samples = 0
-            weight_loss = 0
-            config = int(sys.argv[1]) - 1
-            outlier_configs = ['procas_pvas_vas_raw_base']
-            string_names = ['no_thresholding']
-            for threshold in [2, 6, 10, 14, 18, 22, 26, 30]:
-                for method in ['remove_patient', 'remove_image', 'replace_with_avg']:
-                    outlier_configs.append(f'outlier_processed_by_{method}_threshold_{threshold}_pvas_vas_raw_base')
-                    string_names.append('{}_th{}'.format(method, threshold))
-            data_path = outlier_configs[config]
-            base_name = base_name + '_{}'.format(string_names[config])
-
-        best_model_name = '{}_lr{}x{}_{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
-            base_name, round_to_(lr), batch_size, arch, pre_trained, replicate, round_to_(dropout), op_choice, transformed,
-            weight_loss, weight_samples)
+    lr = trial.suggest_float('lr', 3e-6, 1e-3, log=True)
+    op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
+    batch_size = trial.suggest_int('batch_size', 2, 27)
+    dropout = trial.suggest_float('dropout', 0, 0.7)
+    # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
+    resnet_size = trial.suggest_categorical('resent_size', [18, 34])#, 50])
+    pooling_type = trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
+    pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
+    replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
+    transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
+    weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
+    weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
+    data_path = processed_dataset_file
+    best_model_name = '{}_lr{}x{}_{}{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
+        base_name, round_to_(lr), batch_size, resnet_size, pooling_type, pre_trained,
+        replicate, round_to_(dropout), op_choice, transformed, weight_loss, weight_samples)
 
     print("Accessing data from", data_path, "\nConfig", best_model_name)
     print(time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    if not combined_processing:
-        train_loader, val_loader, test_loader = return_mosaic_loaders(data_path, transformed,
-                                                                      weight_loss, weight_samples, batch_size)
-    else:
-        train_loader, val_loader, test_loader = return_combined_loaders(data_name_1, data_name_2, transformed,
-                                                                        weight_loss, weight_samples, batch_size,
-                                                                        only_first=True)
-    priors_loader = return_mosaic_loaders(processed_priors_file, transformed,
-                                          weight_loss, weight_samples, batch_size,
-                                          only_testing=True)
+    train_loader, val_loader, test_loader = return_medici_loaders(data_path, transformed,
+                                                                  weight_loss, weight_samples, batch_size)
+    # priors_loader = return_medici_loaders(processed_priors_file, transformed,
+    #                                       weight_loss, weight_samples, batch_size,
+    #                                       only_testing=True)
+
+    num_manufacturers = 6
+    manufacturer_mapping = {'Philips': nn.functional.one_hot(torch.tensor(0), 
+                                                             num_classes=num_manufacturers).to(torch.float32).to('cuda'),
+                            'SIEMENS': nn.functional.one_hot(torch.tensor(1), 
+                                                             num_classes=num_manufacturers).to(torch.float32).to('cuda'),
+                            'HOLOGIC': nn.functional.one_hot(torch.tensor(2), 
+                                                             num_classes=num_manufacturers).to(torch.float32).to('cuda'),
+                            'GE': nn.functional.one_hot(torch.tensor(3), 
+                                                             num_classes=num_manufacturers).to(torch.float32).to('cuda'),
+                            'KODAK': nn.functional.one_hot(torch.tensor(4), 
+                                                             num_classes=num_manufacturers).to(torch.float32).to('cuda'),
+                            'FUJIFILM': nn.functional.one_hot(torch.tensor(5), 
+                                                             num_classes=num_manufacturers).to(torch.float32).to('cuda')}
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
     #edit cuda
     print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
-    if mosaics_processing:
-        model = Mosaic_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
-                                 split=split_CC_and_MLO).to('cuda')
-        # model = Mosaic_PVAS_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
-        #                          split=split_CC_and_MLO).to('cuda')
-    else:
-        if arch == 'pvas':
-            model = Pvas_Model(pre_trained, replicate, dropout, split=split_CC_and_MLO).to('cuda')
-        else:
-            model = ResNetTransformer(pre_trained, replicate, dropout, split=split_CC_and_MLO).to('cuda')
+    model = Medici_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
+                             split=split_CC_and_MLO, num_manufacturers=num_manufacturers).to('cuda')
     epsilon = 0.
     # model = TransformerModel(epsilon=epsilon).to(device)
     criterion = nn.MSELoss(reduction='none')  # Mean squared error for regression
@@ -202,7 +165,7 @@ def regression_training(trial):
         all_predictions = []
         train_loss = 0.0
         scaled_train_loss = 0.0
-        for inputs, targets, weights, dir, views in tqdm(train_loader):  # Simplified unpacking
+        for inputs, targets, weight, patient, manu, views in tqdm(train_loader):  # Simplified unpacking
             inputs, targets, weights = inputs.to('cuda'), targets.to('cuda'), targets.to('cuda')  # Send data to GPU
             # print("inputs, targets, weights, dir, view")
             # print(inputs, "\n", targets, "\n", weights, "\n", dir, "\n", view)
@@ -219,14 +182,18 @@ def regression_training(trial):
             if not split_CC_and_MLO:
                 for i in range(len(views[0])):
                     for j in range(len(views)):
-                        if 'MLO' in views[j][i]:
+                        if 'MLO' in views[j][i] or 'mlo' in views[j][i]:
                             is_it_mlo[i][j][0] += 1
                         else:
                             is_it_mlo[i][j][1] += 1
+            manufacturer = torch.zeros([len(views[0]), len(views), num_manufacturers]).float().to('cuda')
+            for i in range(len(views[0])):
+                for j in range(len(views)):
+                    manufacturer[i][j] += manufacturer_mapping[manu[j]]
 
             # Forward
             print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-            outputs = model.forward(inputs.unsqueeze(1), is_it_mlo)  # Add channel dimension
+            outputs = model.forward(inputs.unsqueeze(1), is_it_mlo, manufacturer)  # Add channel dimension
             print("Before losses\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
             print("Before weighting\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
@@ -257,35 +224,48 @@ def regression_training(trial):
         # Validation
         print("Evaluating on the validation set")
         val_loss, val_labels, val_preds, val_r2, val_r2w, val_err, val_conf = \
-            evaluate_mosaic(model, val_loader, criterion,
-                           inverse_standardize_targets, mean, std,
-                           split_CC_and_MLO=split_CC_and_MLO,
-                           r2_weighting_offset=r2_weighting_offset)
+            evaluate_medici(model, val_loader, criterion,
+                            inverse_standardize_targets, mean, std,
+                            num_manufacturers=num_manufacturers,
+                            manufacturer_mapping=manufacturer_mapping,
+                            split_CC_and_MLO=split_CC_and_MLO,
+                            r2_weighting_offset=r2_weighting_offset
+                            )
         print("Evaluating on the test set")
         test_loss, test_labels, test_preds, test_r2, test_r2w, test_err, test_conf = \
-            evaluate_mosaic(model, test_loader, criterion,
-                           inverse_standardize_targets, mean, std,
-                           split_CC_and_MLO=split_CC_and_MLO,
-                           r2_weighting_offset=r2_weighting_offset)
-        print("Evaluating on the priors set")
-        priors_loss, priors_labels, priors_preds, priors_r2, priors_r2w, priors_err, priors_conf = \
-            evaluate_mosaic(model, priors_loader, criterion,
-                           inverse_standardize_targets, mean, std,
-                           split_CC_and_MLO=split_CC_and_MLO,
-                           r2_weighting_offset=r2_weighting_offset)
+            evaluate_medici(model, test_loader, criterion,
+                            inverse_standardize_targets, mean, std,
+                            num_manufacturers=num_manufacturers,
+                            manufacturer_mapping=manufacturer_mapping,
+                            split_CC_and_MLO=split_CC_and_MLO,
+                            r2_weighting_offset=r2_weighting_offset
+                            )
+        # print("Evaluating on the priors set")
+        # priors_loss, priors_labels, priors_preds, priors_r2, priors_r2w, priors_err, priors_conf = \
+        #     evaluate_medici(model, priors_loader, criterion,
+        #                    inverse_standardize_targets, mean, std,
+        #                    split_CC_and_MLO=split_CC_and_MLO,
+        #                    r2_weighting_offset=r2_weighting_offset)
         val_fig = plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, False, True)
         writer.add_figure("Validation Scatter Plot/{}".format(best_model_name), val_fig, epoch)
         test_fig = plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, False, True)
         writer.add_figure("Test Scatter Plot/{}".format(best_model_name), test_fig, epoch)
-        priors_fig = plot_scatter(priors_labels, priors_preds, "Priors Scatter Plot " + best_model_name, False, True)
-        writer.add_figure("Priors Scatter Plot/{}".format(best_model_name), priors_fig, epoch)
+        # priors_fig = plot_scatter(priors_labels, priors_preds, "Priors Scatter Plot " + best_model_name, False, True)
+        # writer.add_figure("Priors Scatter Plot/{}".format(best_model_name), priors_fig, epoch)
+        # print(f"Epoch {epoch + 1}/{num_epochs}, {best_model_name}"
+        #       f"\nTrain Loss: {scaled_train_loss:.4f}, Val Loss: {val_loss:.4f}, "
+        #       f"Test loss: {test_loss:.4f}, Priors loss: {priors_loss:.4f}"
+        #       f"\nTrain R2: {train_r2:.4f}, Val R2: {val_r2:.4f}, "
+        #       f"Test R2: {test_r2:.4f}, Priors R2: {priors_r2:.4f}"
+        #       f"\nTrain R2w: {train_r2w:.4f}, Val R2w: {val_r2w:.4f}, "
+        #       f"Test R2w: {test_r2w:.4f}, Priors R2w: {priors_r2w:.4f}")
         print(f"Epoch {epoch + 1}/{num_epochs}, {best_model_name}"
               f"\nTrain Loss: {scaled_train_loss:.4f}, Val Loss: {val_loss:.4f}, "
-              f"Test loss: {test_loss:.4f}, Priors loss: {priors_loss:.4f}"
+              f"Test loss: {test_loss:.4f}"
               f"\nTrain R2: {train_r2:.4f}, Val R2: {val_r2:.4f}, "
-              f"Test R2: {test_r2:.4f}, Priors R2: {priors_r2:.4f}"
+              f"Test R2: {test_r2:.4f}"
               f"\nTrain R2w: {train_r2w:.4f}, Val R2w: {val_r2w:.4f}, "
-              f"Test R2w: {test_r2w:.4f}, Priors R2w: {priors_r2w:.4f}")
+              f"Test R2w: {test_r2w:.4f}")
 
         writer.add_scalar('Loss/Train', scaled_train_loss, epoch)
         writer.add_scalar('R2/Train', train_r2, epoch)
@@ -301,9 +281,9 @@ def regression_training(trial):
         writer.add_scalar('R2 weighted/Test', test_r2w, epoch)
         writer.add_scalar('Error/Mean error', train_err, epoch)
         writer.add_scalar('Error/Confidence interval', train_conf, epoch)
-        writer.add_scalar('Loss/Priors', priors_loss, epoch)
-        writer.add_scalar('R2/Priors', priors_r2, epoch)
-        writer.add_scalar('R2 weighted/Priors', priors_r2w, epoch)
+        # writer.add_scalar('Loss/Priors', priors_loss, epoch)
+        # writer.add_scalar('R2/Priors', priors_r2, epoch)
+        # writer.add_scalar('R2 weighted/Priors', priors_r2w, epoch)
 
         writer.add_scalar('Error/Mean error training', train_err, epoch)
         writer.add_scalar('Error/Confidence interval training', train_conf, epoch)
@@ -311,8 +291,8 @@ def regression_training(trial):
         writer.add_scalar('Error/Confidence interval validation', val_conf, epoch)
         writer.add_scalar('Error/Mean error testing', test_err, epoch)
         writer.add_scalar('Error/Confidence interval testing', test_conf, epoch)
-        writer.add_scalar('Error/Mean error priors', priors_err, epoch)
-        writer.add_scalar('Error/Confidence interval priors', priors_conf, epoch)
+        # writer.add_scalar('Error/Mean error priors', priors_err, epoch)
+        # writer.add_scalar('Error/Confidence interval priors', priors_conf, epoch)
 
         if on_CSF and optuna_optimisation:
             for attempt in range(40):
@@ -331,21 +311,21 @@ def regression_training(trial):
         if val_r2 > best_val_r2:
             best_val_r2 = val_r2
             best_test_r2 = test_r2
-            best_priors_r2 = priors_r2
+            # best_priors_r2 = priors_r2
             best_val_r_loss = val_loss
             best_test_r_loss = test_loss
-            best_priors_r_loss = priors_loss
+            # best_priors_r_loss = priors_loss
             best_val_r_r2w = val_r2w
             best_test_r_r2w = test_r2w
-            best_priors_r_r2w = priors_r2w
+            # best_priors_r_r2w = priors_r2w
             best_train_error_from_r2 = train_err
             best_train_conf_int_from_r2 = train_conf
             best_val_error_from_r2 = val_err
             best_val_conf_int_from_r2 = val_conf
             best_test_error_from_r2 = test_err
             best_test_conf_int_from_r2 = test_conf
-            best_priors_error_from_r2 = priors_err
-            best_priors_conf_int_from_r2 = priors_conf
+            # best_priors_error_from_r2 = priors_err
+            # best_priors_conf_int_from_r2 = priors_conf
             not_improved_r2 = 0
             print("Validation R2 improved. Saving best_model.")
             torch.save(model.state_dict(), working_dir + '/../models/rw_' + best_model_name)
@@ -354,21 +334,21 @@ def regression_training(trial):
         if val_r2w > best_val_r2w:
             best_val_r2w = val_r2w
             best_test_r2w = test_r2w
-            best_priors_r2w = priors_r2w
+            # best_priors_r2w = priors_r2w
             best_val_rw_loss = val_loss
             best_test_rw_loss = test_loss
-            best_priors_rw_loss = priors_loss
+            # best_priors_rw_loss = priors_loss
             best_val_rw_r2 = val_r2
             best_test_rw_r2 = test_r2
-            best_priors_rw_r2 = priors_r2
+            # best_priors_rw_r2 = priors_r2
             best_train_error_from_r2w = train_err
             best_train_conf_int_from_r2w = train_conf
             best_val_error_from_r2w = val_err
             best_val_conf_int_from_r2w = val_conf
             best_test_error_from_r2w = test_err
             best_test_conf_int_from_r2w = test_conf
-            best_priors_error_from_r2w = priors_err
-            best_priors_conf_int_from_r2w = priors_conf
+            # best_priors_error_from_r2w = priors_err
+            # best_priors_conf_int_from_r2w = priors_conf
             not_improved_r2w = 0
             print("Validation R2 weighted improved. Saving best_model.")
             torch.save(model.state_dict(), working_dir + '/../models/r_' + best_model_name)
@@ -378,21 +358,21 @@ def regression_training(trial):
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_test_loss = test_loss
-            best_priors_loss = priors_loss
+            # best_priors_loss = priors_loss
             best_val_l_r2 = val_r2
             best_test_l_r2 = test_r2
-            best_priors_l_r2 = priors_r2
+            # best_priors_l_r2 = priors_r2
             best_val_l_r2w = val_r2w
             best_test_l_r2w = test_r2w
-            best_priors_l_r2w = priors_r2w
+            # best_priors_l_r2w = priors_r2w
             best_train_error_from_loss = train_err
             best_train_conf_int_from_loss = train_conf
             best_val_error_from_loss = val_err
             best_val_conf_int_from_loss = val_conf
             best_test_error_from_loss = test_err
             best_test_conf_int_from_loss = test_conf
-            best_priors_error_from_loss = priors_err
-            best_priors_conf_int_from_loss = priors_conf
+            # best_priors_error_from_loss = priors_err
+            # best_priors_conf_int_from_loss = priors_conf
             not_improved_loss = 0
             print("Validation loss improved. Saving best_model.")
             torch.save(model.state_dict(), working_dir + '/../models/l_' + best_model_name)
@@ -438,15 +418,15 @@ def regression_training(trial):
         writer.add_scalar('R2w/Best Test R2w from R2', best_test_r_r2w, epoch)
         writer.add_scalar('R2w/Best Test R2w from Loss', best_test_l_r2w, epoch)
         writer.add_scalar('R2w/Best Test R2w from R2w', best_test_r_r2w, epoch)
-        writer.add_scalar('Loss/Best Priors Loss from Loss', best_priors_loss, epoch)
-        writer.add_scalar('Loss/Best Priors Loss from R2', best_priors_r_loss, epoch)
-        writer.add_scalar('Loss/Best Priors Loss from R2w', best_priors_rw_loss, epoch)
-        writer.add_scalar('R2/Best Priors R2 from R2', best_priors_r2, epoch)
-        writer.add_scalar('R2/Best Priors R2 from Loss', best_priors_l_r2, epoch)
-        writer.add_scalar('R2/Best Priors R2 from R2w', best_priors_rw_r2, epoch)
-        writer.add_scalar('R2w/Best Priors R2w from R2', best_priors_r_r2w, epoch)
-        writer.add_scalar('R2w/Best Priors R2w from Loss', best_priors_l_r2w, epoch)
-        writer.add_scalar('R2w/Best Priors R2w from R2w', best_priors_r2w, epoch)
+        # writer.add_scalar('Loss/Best Priors Loss from Loss', best_priors_loss, epoch)
+        # writer.add_scalar('Loss/Best Priors Loss from R2', best_priors_r_loss, epoch)
+        # writer.add_scalar('Loss/Best Priors Loss from R2w', best_priors_rw_loss, epoch)
+        # writer.add_scalar('R2/Best Priors R2 from R2', best_priors_r2, epoch)
+        # writer.add_scalar('R2/Best Priors R2 from Loss', best_priors_l_r2, epoch)
+        # writer.add_scalar('R2/Best Priors R2 from R2w', best_priors_rw_r2, epoch)
+        # writer.add_scalar('R2w/Best Priors R2w from R2', best_priors_r_r2w, epoch)
+        # writer.add_scalar('R2w/Best Priors R2w from Loss', best_priors_l_r2w, epoch)
+        # writer.add_scalar('R2w/Best Priors R2w from R2w', best_priors_r2w, epoch)
 
         writer.add_scalar('Best Error from loss/Mean error training', best_train_error_from_loss, epoch)
         writer.add_scalar('Best Error from loss/Confidence interval training', best_train_conf_int_from_loss, epoch)
@@ -454,24 +434,24 @@ def regression_training(trial):
         writer.add_scalar('Best Error from loss/Confidence interval validation', best_val_conf_int_from_loss, epoch)
         writer.add_scalar('Best Error from loss/Mean error testing', best_test_error_from_loss, epoch)
         writer.add_scalar('Best Error from loss/Confidence interval testing', best_test_conf_int_from_loss, epoch)
-        writer.add_scalar('Best Error from loss/Mean error priors', best_priors_error_from_loss, epoch)
-        writer.add_scalar('Best Error from loss/Confidence interval priors', best_priors_conf_int_from_loss, epoch)
+        # writer.add_scalar('Best Error from loss/Mean error priors', best_priors_error_from_loss, epoch)
+        # writer.add_scalar('Best Error from loss/Confidence interval priors', best_priors_conf_int_from_loss, epoch)
         writer.add_scalar('Best Error from r2/Mean error training', best_train_error_from_r2, epoch)
         writer.add_scalar('Best Error from r2/Confidence interval training', best_train_conf_int_from_r2, epoch)
         writer.add_scalar('Best Error from r2/Mean error validation', best_val_error_from_r2, epoch)
         writer.add_scalar('Best Error from r2/Confidence interval validation', best_val_conf_int_from_r2, epoch)
         writer.add_scalar('Best Error from r2/Mean error testing', best_test_error_from_r2, epoch)
         writer.add_scalar('Best Error from r2/Confidence interval testing', best_test_conf_int_from_r2, epoch)
-        writer.add_scalar('Best Error from r2/Mean error priors', best_priors_error_from_r2, epoch)
-        writer.add_scalar('Best Error from r2/Confidence interval priors', best_priors_conf_int_from_r2, epoch)
+        # writer.add_scalar('Best Error from r2/Mean error priors', best_priors_error_from_r2, epoch)
+        # writer.add_scalar('Best Error from r2/Confidence interval priors', best_priors_conf_int_from_r2, epoch)
         writer.add_scalar('Best Error from r2w/Mean error training', best_train_error_from_r2w, epoch)
         writer.add_scalar('Best Error from r2w/Confidence interval training', best_train_conf_int_from_r2w, epoch)
         writer.add_scalar('Best Error from r2w/Mean error validation', best_val_error_from_r2w, epoch)
         writer.add_scalar('Best Error from r2w/Confidence interval validation', best_val_conf_int_from_r2w, epoch)
         writer.add_scalar('Best Error from r2w/Mean error testing', best_test_error_from_r2w, epoch)
         writer.add_scalar('Best Error from r2w/Confidence interval testing', best_test_conf_int_from_r2w, epoch)
-        writer.add_scalar('Best Error from r2w/Mean error priors', best_priors_error_from_r2w, epoch)
-        writer.add_scalar('Best Error from r2w/Confidence interval priors', best_priors_conf_int_from_r2w, epoch)
+        # writer.add_scalar('Best Error from r2w/Mean error priors', best_priors_error_from_r2w, epoch)
+        # writer.add_scalar('Best Error from r2w/Confidence interval priors', best_priors_conf_int_from_r2w, epoch)
 
         # scheduler.step(val_loss)
 
@@ -487,28 +467,39 @@ def regression_training(trial):
     # Evaluating on all datasets: train, val, test
     print("Final evaluation on the train set")
     train_loss, train_labels, train_preds, train_r2, train_r2w, train_err, train_conf = \
-        evaluate_mosaic(model, train_loader, criterion,
-                       inverse_standardize_targets, mean, std,
-                       split_CC_and_MLO=split_CC_and_MLO,
-                       r2_weighting_offset=r2_weighting_offset)
+        evaluate_medici(model, train_loader, criterion,
+                        inverse_standardize_targets, mean, std,
+                        num_manufacturers=num_manufacturers,
+                        manufacturer_mapping=manufacturer_mapping,
+                        split_CC_and_MLO=split_CC_and_MLO,
+                        r2_weighting_offset=r2_weighting_offset
+                        )
     print("Final evaluation on the validation set")
     val_loss, val_labels, val_preds, val_r2, val_r2w, val_err, val_conf = \
-        evaluate_mosaic(model, val_loader, criterion,
-                       inverse_standardize_targets,
-                       mean, std, split_CC_and_MLO=split_CC_and_MLO,
-                       r2_weighting_offset=r2_weighting_offset)
+        evaluate_medici(model, val_loader, criterion,
+                        inverse_standardize_targets,
+                        mean, std,
+                        num_manufacturers=num_manufacturers,
+                        manufacturer_mapping=manufacturer_mapping,
+                        split_CC_and_MLO=split_CC_and_MLO,
+                        r2_weighting_offset=r2_weighting_offset
+                        )
     print("Final evaluation on the test set")
     test_loss, test_labels, test_preds, test_r2, test_r2w, test_err, test_conf = \
-        evaluate_mosaic(model, test_loader, criterion,
-                       inverse_standardize_targets,
-                       mean, std, split_CC_and_MLO=split_CC_and_MLO,
-                       r2_weighting_offset=r2_weighting_offset)
-    print("Final evaluation on the priors set")
-    priors_loss, priors_labels, priors_preds, priors_r2, priors_r2w, priors_err, priors_conf = \
-        evaluate_mosaic(model, priors_loader, criterion,
-                       inverse_standardize_targets,
-                       mean, std, split_CC_and_MLO=split_CC_and_MLO,
-                       r2_weighting_offset=r2_weighting_offset)
+        evaluate_medici(model, test_loader, criterion,
+                        inverse_standardize_targets,
+                        mean, std,
+                        num_manufacturers=num_manufacturers,
+                        manufacturer_mapping=manufacturer_mapping,
+                        split_CC_and_MLO=split_CC_and_MLO,
+                        r2_weighting_offset=r2_weighting_offset
+                        )
+    # print("Final evaluation on the priors set")
+    # priors_loss, priors_labels, priors_preds, priors_r2, priors_r2w, priors_err, priors_conf = \
+    #     evaluate_medici(model, priors_loader, criterion,
+    #                    inverse_standardize_targets,
+    #                    mean, std, split_CC_and_MLO=split_CC_and_MLO,
+    #                    r2_weighting_offset=r2_weighting_offset)
 
     # R2 Scores
     print(f"Train R2 Score: {train_r2:.4f}")
@@ -526,23 +517,23 @@ def regression_training(trial):
     print(f"Test Loss: {test_loss:.4f}")
     print(f"Test Error: {test_err:.4f}")
     print(f"Test Confidence interval: {test_conf:.4f}")
-    print(f"Priors R2 Score: {priors_r2:.4f}")
-    print(f"Priors R2w Score: {priors_r2w:.4f}")
-    print(f"Priors Loss: {priors_loss:.4f}")
-    print(f"Priors Error: {priors_err:.4f}")
-    print(f"Priors Confidence interval: {priors_conf:.4f}")
+    # print(f"Priors R2 Score: {priors_r2:.4f}")
+    # print(f"Priors R2w Score: {priors_r2w:.4f}")
+    # print(f"Priors Loss: {priors_loss:.4f}")
+    # print(f"Priors Error: {priors_err:.4f}")
+    # print(f"Priors Confidence interval: {priors_conf:.4f}")
 
     # Scatter plots
     plot_scatter(train_labels, train_preds, "Train Scatter Plot " + best_model_name, working_dir + '/results/')
     plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, working_dir + '/results/')
     plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, working_dir + '/results/')
-    plot_scatter(priors_labels, priors_preds, "Priors Scatter Plot " + best_model_name, working_dir + '/results/')
+    # plot_scatter(priors_labels, priors_preds, "Priors Scatter Plot " + best_model_name, working_dir + '/results/')
 
     # Error distributions
     plot_error_vs_vas(train_labels, train_preds, "Train Error vs VAS " + best_model_name, working_dir + '/results/')
     plot_error_vs_vas(val_labels, val_preds, "Validation Error vs VAS " + best_model_name, working_dir + '/results/')
     plot_error_vs_vas(test_labels, test_preds, "Test Error vs VAS " + best_model_name, working_dir + '/results/')
-    plot_error_vs_vas(priors_labels, priors_preds, "Priors Error vs VAS " + best_model_name, working_dir + '/results/')
+    # plot_error_vs_vas(priors_labels, priors_preds, "Priors Error vs VAS " + best_model_name, working_dir + '/results/')
 
     # Error distributions
     plot_error_distribution(train_labels, train_preds, "Train Error Distribution " + best_model_name,
@@ -551,8 +542,8 @@ def regression_training(trial):
                             working_dir + '/results/')
     plot_error_distribution(test_labels, test_preds, "Test Error Distribution " + best_model_name,
                             working_dir + '/results/')
-    plot_error_distribution(priors_labels, priors_preds, "Priors Error Distribution " + best_model_name,
-                            working_dir + '/results/')
+    # plot_error_distribution(priors_labels, priors_preds, "Priors Error Distribution " + best_model_name,
+    #                         working_dir + '/results/')
 
     print("Done")
 
