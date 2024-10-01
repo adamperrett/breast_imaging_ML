@@ -63,7 +63,7 @@ def regression_training(trial):
     #                                       weight_loss, weight_samples, batch_size,
     #                                       only_testing=True)
 
-    num_manufacturers = 6
+    num_manufacturers = 8
     manufacturer_mapping = {'Philips': nn.functional.one_hot(torch.tensor(0), 
                                                              num_classes=num_manufacturers).to(torch.float32).to('cuda'),
                             'SIEMENS': nn.functional.one_hot(torch.tensor(1), 
@@ -75,6 +75,10 @@ def regression_training(trial):
                             'KODAK': nn.functional.one_hot(torch.tensor(4), 
                                                              num_classes=num_manufacturers).to(torch.float32).to('cuda'),
                             'FUJIFILM': nn.functional.one_hot(torch.tensor(5), 
+                                                             num_classes=num_manufacturers).to(torch.float32).to('cuda'),
+                            'IMS': nn.functional.one_hot(torch.tensor(6),
+                                                             num_classes=num_manufacturers).to(torch.float32).to('cuda'),
+                            'LORAD': nn.functional.one_hot(torch.tensor(7),
                                                              num_classes=num_manufacturers).to(torch.float32).to('cuda')}
 
     # Initialize model, criterion, optimizer
