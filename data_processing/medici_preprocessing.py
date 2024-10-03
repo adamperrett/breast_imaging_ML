@@ -207,9 +207,9 @@ if __name__ == "__main__":
             patient_data[patient] = {}
         side = row.Side
         manufacturer = row.Manufacturer
-        if 'LORAD' in manufacturer or 'KODAK' in manufacturer or 'IMS' in manufacturer:
-            print(f"Skipping patient {patient} because manufacturer = {manufacturer}, and they are underrepresented")
-            continue
+        # if 'LORAD' in manufacturer or 'KODAK' in manufacturer or 'IMS' in manufacturer:
+        #     print(f"Skipping patient {patient} because manufacturer = {manufacturer}, and they are underrepresented")
+        #     continue
         if pilot:
             exclude_reader = ['pwhelehan']
             readers = ['aevans', 'emuscat', 'mtelesca', 'ssavaridas', 'pwhelehan', 'smuthyala', 'sdrummond', 'nhealy', 'asharma', 'svinnicombe', 'jnash']
