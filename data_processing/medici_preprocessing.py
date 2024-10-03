@@ -44,18 +44,19 @@ sns.set(style='dark')
 print("Reading data")
 
 csf = True
-pilot = False
+pilot = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
     save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
-save_name = 'medici_preprocessed_data.pth'
 if pilot:
-    csv_name = 'pilot_50.csv'
+    csv_name = '_vendors_grouped_pilot_50subjects_rearranged.csv'
+    save_name = 'medici_preprocessed_pilot.pth'
 else:
     csv_name = '_vendors_grouped_Reader_1704subjects.csv'
+    save_name = 'medici_preprocessed_data.pth'
 
 csv_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 
@@ -209,7 +210,13 @@ if __name__ == "__main__":
         if 'LORAD' in manufacturer or 'KODAK' in manufacturer or 'IMS' in manufacturer:
             print(f"Skipping patient {patient} because manufacturer = {manufacturer}, and they are underrepresented")
             continue
-        score = row.Score
+        if pilot:
+            exclude_reader = ['pwhelehan']
+            readers = ['aevans', 'emuscat', 'mtelesca', 'ssavaridas', 'pwhelehan', 'smuthyala', 'sdrummond', 'nhealy', 'asharma', 'svinnicombe', 'jnash']
+            included_readers = [reader for reader in readers if reader not in exclude_reader]
+            score = np.mean(row[included_readers])
+        else:
+            score = row.Score
         time_point = row.TimePoint
         format = 'PRO'
         cc_path = row.CCpath
