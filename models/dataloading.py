@@ -624,11 +624,10 @@ def return_medici_loaders(file_name, transformed, weighted_loss, weighted_sampli
     if only_testing:
         print(f"Loading data {file_name} for testing from {processed_dataset_path}")
         print(time.localtime())
-        train_data, _, _ = split_by_patient_and_stratefy_by_manufacturer(full_processed_data_address,
-                                                           1., 0, 0, seed_value)
+        train_data = torch.load(full_processed_data_address)
         data = train_data
-        dataset = MosaicEvaluateLoader(data, max_n=4)
-        loader = DataLoader(dataset, batch_size=1, shuffle=False,
+        dataset = MediciLoader(data)
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=False,
                             generator=torch.Generator(device=device))
         return loader
 

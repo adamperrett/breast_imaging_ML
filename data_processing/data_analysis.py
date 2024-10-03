@@ -21,6 +21,7 @@ def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, m
     running_loss = 0.0
     all_targets = []
     all_predictions = []
+    all_manufacturers = []
     if return_names:
         all_names = []
 
@@ -41,9 +42,9 @@ def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, m
                         else:
                             is_it_mlo[i][j][1] += 1
             manufacturer = torch.zeros([len(views[0]), len(views), num_manufacturers]).float().to('cuda')
-            for i in range(len(views[0])):
-                for j in range(len(views)):
-                    manufacturer[i][j] += manufacturer_mapping[manu[j]]
+            for j in range(len(manufacturer[0])):
+                for i in range(len(manufacturer)):
+                    manufacturer[i][j] += manufacturer_mapping[manu[i]]
 
             outputs = model.forward(inputs.unsqueeze(1), is_it_mlo.cuda(), manufacturer).to('cpu')
             test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
@@ -53,6 +54,7 @@ def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, m
 
             all_targets.extend(test_targets_original_scale.cpu().numpy())
             all_predictions.extend(test_outputs_original_scale.cpu().numpy())
+            all_manufacturers.extend(manu)
             if return_names:
                 all_names.extend(patient)
 
@@ -67,7 +69,7 @@ def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, m
     if return_names:
         return epoch_loss, all_targets, all_predictions, r2, all_names
     else:
-        return epoch_loss, all_targets, all_predictions, r2, r2w, error, conf_int
+        return epoch_loss, all_targets, all_predictions, r2, r2w, error, conf_int, all_manufacturers
 
 def evaluate_mosaic(model, dataloader, criterion, inverse_standardize_targets, mean, std,
                    return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):

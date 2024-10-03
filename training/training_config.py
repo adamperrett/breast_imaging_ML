@@ -52,12 +52,21 @@ if on_CSF:
         base_name = 'vas_outlier_reseeding'
     # processed_dataset_path = '/mnt/bmh01-rds/assure/processed_data/'
     # data_name = 'procas_pvas_vbd_processed_per_im_base'
-    priors_name = 'priors_pvas_vas_raw_base'
+    if medici_processing:
+        pilot_name = 'medici_preprocessed_pilot'
+        if split_CC_and_MLO:
+            pilot_name += '_' + CC_or_MLO
+    else:
+        priors_name = 'priors_pvas_vas_raw_base'
+        if split_CC_and_MLO:
+            priors_name += '_' + CC_or_MLO
     if split_CC_and_MLO:
         base_name += '_' + CC_or_MLO
         data_name += '_' + CC_or_MLO
-        priors_name += '_' + CC_or_MLO
-    processed_priors_file = priors_name
+    if medici_processing:
+        processed_pilot_file = pilot_name
+    else:
+        processed_priors_file = priors_name
     processed_dataset_file = data_name
 else:
 
