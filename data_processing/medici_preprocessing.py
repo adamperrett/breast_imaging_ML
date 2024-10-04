@@ -44,7 +44,7 @@ sns.set(style='dark')
 print("Reading data")
 
 csf = True
-pilot = True
+pilot = False
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
@@ -56,7 +56,7 @@ if pilot:
     save_name = 'medici_preprocessed_pilot.pth'
 else:
     csv_name = '_vendors_grouped_Reader_1704subjects.csv'
-    save_name = 'medici_preprocessed_data.pth'
+    save_name = 'medici_5_vendors_preprocessed_data.pth'
 
 csv_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 
@@ -207,9 +207,9 @@ if __name__ == "__main__":
             patient_data[patient] = {}
         side = row.Side
         manufacturer = row.Manufacturer
-        # if 'LORAD' in manufacturer or 'KODAK' in manufacturer or 'IMS' in manufacturer:
-        #     print(f"Skipping patient {patient} because manufacturer = {manufacturer}, and they are underrepresented")
-        #     continue
+        if 'LORAD' in manufacturer or 'KODAK' in manufacturer or 'IMS' in manufacturer:
+            print(f"Skipping patient {patient} because manufacturer = {manufacturer}, and they are underrepresented")
+            continue
         if pilot:
             exclude_reader = ['pwhelehan']
             readers = ['aevans', 'emuscat', 'mtelesca', 'ssavaridas', 'pwhelehan', 'smuthyala', 'sdrummond', 'nhealy', 'asharma', 'svinnicombe', 'jnash']
