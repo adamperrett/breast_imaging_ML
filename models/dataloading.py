@@ -40,7 +40,8 @@ class MediciLoader(Dataset):
                         self.dataset.append([
                             image,
                             score,
-                            score,  # weight by score for now
+                            # score,  # weight by score for now
+                            timepoint,
                             patient,
                             manu,
                             view
@@ -50,7 +51,8 @@ class MediciLoader(Dataset):
                         self.dataset.append([
                             image,
                             score,
-                            score,  # weight
+                            # score,  # weight
+                            timepoint,
                             patient,
                             manu,
                             view
@@ -69,7 +71,8 @@ class MediciLoader(Dataset):
                         self.dataset.append([
                             images,
                             score,
-                            score,  # weight
+                            # score,  # weight
+                            timepoint,
                             patient,
                             manu,
                             views
@@ -353,6 +356,77 @@ def split_and_group_by_patient(dataset_path, train_ratio, val_ratio, seed_value=
 
     return train_data, val_data, test_data
 
+def split_into_groups(data, m):
+    """
+    Split a list or tensor into m even groups.
+
+    Args:
+        data (list or tensor): The data to split.
+        m (int): The number of groups.
+
+    Returns:
+        List of tensors: Groups of approximately equal size.
+    """
+    n = len(data)
+    group_size = n // m
+    remainder = n % m  # Remaining items to distribute
+
+    groups = []
+    start_idx = 0
+
+    for i in range(m):
+        # Calculate the size of the current group
+        extra = 1 if i < remainder else 0
+        end_idx = start_idx + group_size + extra
+
+        # Append the current group
+        groups.append(data[start_idx:end_idx])
+        start_idx = end_idx
+
+    return groups
+
+
+def split_by_patient_and_current_crossval(dataset_path, train_ratio, val_ratio, test_ratio, seed_value=0, current_fold=0):
+    print("Loading data to split by patient", time.localtime())
+    dataset = torch.load(dataset_path)
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed_value)
+        torch.cuda.manual_seed_all(seed_value)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    print("Grouping entries by the unique key", time.localtime())
+    patient_manufacturers = []
+    patient_list = []
+    manufactorer_index = {}
+    for patient in dataset:
+        patient_list.append(patient)
+    patient_list = np.array(patient_list)
+
+    n_numbers = torch.randperm(len(patient_list))  # Numbers from 0 to 100
+    m_groups = int(1 / 0.05)  # Number of groups
+
+    groups = split_into_groups(n_numbers, m_groups)
+    shift = current_fold * 2
+    train_group_indexes = (torch.linspace(0, 14, 15, dtype=torch.int16) + shift) % m_groups
+    val_group_indexes = (torch.linspace(15, 17, 3, dtype=torch.int16) + shift) % m_groups
+    test_group_indexes = (torch.linspace(18, 19, 2, dtype=torch.int16) + shift) % m_groups
+    train_index = torch.hstack([groups[idx] for idx in train_group_indexes])
+    val_index = torch.hstack([groups[idx] for idx in val_group_indexes])
+    test_index = torch.hstack([groups[idx] for idx in test_group_indexes])
+    training_patients = patient_list[train_index]
+    val_patients = patient_list[val_index]
+    test_patients = patient_list[test_index]
+
+    # Split the patient data into train, validation, and test sets
+    train_data = {tp: dataset[tp] for tp in training_patients}
+    val_data = {vp: dataset[vp] for vp in val_patients}
+    test_data = {tp: dataset[tp] for tp in test_patients}
+
+    return train_data, val_data, test_data
 
 def split_by_patient(dataset_path, train_ratio, val_ratio, seed_value=0):
     print("Loading data to split by patient", time.localtime())
@@ -728,6 +802,122 @@ def return_medici_loaders(file_name, transformed, weighted_loss, weighted_sampli
                                  generator=torch.Generator(device=device))
 
     return train_loader, val_loader, test_loader
+
+def return_crossval_loaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size,
+                       only_testing=False):
+    print("Beginning data loading", time.localtime())
+
+    full_processed_data_address = os.path.join(processed_dataset_path, file_name+'.pth')
+
+    global mean, std
+
+    print(f"Data being collected = {file_name} from {processed_dataset_path}")
+    print(time.localtime())
+    print("Processing data for the first time", time.localtime())
+    # Splitting the dataset
+    cross_fold_csv_filename = 'all_cross_fold_data.csv'
+    if os.path.isfile(os.path.join(working_dir, cross_fold_csv_filename)):
+        cross_fold_csv = pd.read_csv(os.path.join(working_dir, cross_fold_csv_filename), sep=',')
+        seed_value = int((len(cross_fold_csv.columns) - 2) / 10)
+        current_fold = ((len(cross_fold_csv.columns) - 2) % 10)
+    else:
+        seed_value = 0
+        current_fold = 0
+    train_ratio, val_ratio, test_ratio = 0.75, 0.15, 0.10
+    train_data, val_data, test_data = split_by_patient_and_current_crossval(
+        full_processed_data_address,
+        train_ratio, val_ratio, test_ratio, seed_value, current_fold)
+
+    # Compute weights for the training set
+    targets = np.hstack([
+        [train_data[patient][0]['score'] for patient in train_data
+         if 0 in train_data[patient] and not train_data[patient][0]['failed']],
+        [train_data[patient][1]['score'] for patient in train_data
+         if 1 in train_data[patient] and not train_data[patient][1]['failed']],
+        [train_data[patient][3]['score'] for patient in train_data
+         if 3 in train_data[patient] and not train_data[patient][3]['failed']]])
+    computed_weights = targets  # compute_sample_weights(targets)
+
+    mean, std = compute_target_statistics(targets)
+
+    row_list = []
+    for patient in train_data:
+        for timepoint in train_data[patient]:
+            row_list.append({'case': patient, 'timepoint': timepoint,
+                             'crossval{}-{}'.format(seed_value, current_fold): 'train'})
+    for patient in val_data:
+        for timepoint in val_data[patient]:
+            row_list.append({'case': patient, 'timepoint': timepoint,
+                             'crossval{}-{}'.format(seed_value, current_fold): 'val'})
+    for patient in test_data:
+        for timepoint in test_data[patient]:
+            row_list.append({'case': patient, 'timepoint': timepoint,
+                             'crossval{}-{}'.format(seed_value, current_fold): -1000})
+    this_cross_val_data = pd.DataFrame(row_list, columns=['case', 'timepoint',
+                                                          'crossval{}-{}'.format(seed_value, current_fold)])
+    if os.path.isfile(os.path.join(working_dir, cross_fold_csv_filename)):
+        cross_fold_csv = pd.read_csv(os.path.join(working_dir, cross_fold_csv_filename), sep=',')
+        cross_fold_csv = pd.merge(cross_fold_csv, this_cross_val_data, on=['case', 'timepoint'])
+        cross_fold_csv.to_csv(os.path.join(working_dir, cross_fold_csv_filename), index=False)
+    else:
+        this_cross_val_data.to_csv(os.path.join(working_dir, cross_fold_csv_filename), index=False)
+
+
+    if weighted_sampling:
+        sample_weights = computed_weights
+    else:
+        sample_weights = None
+
+    if transformed:
+        # Define your augmentations
+        data_transforms = transforms.Compose([
+            transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
+            # Assuming images are PIL images; if not, you'll need to adjust or implement suitable transformations
+        ])
+    else:
+        data_transforms = None
+
+    # Create Dataset
+    print("Creating Dataset", time.localtime())
+    train_dataset = MediciLoader(train_data, transform=data_transforms)
+    val_dataset = MediciLoader(val_data)
+    test_dataset = MediciLoader(test_data)
+
+    # Create DataLoaders
+    print("Creating DataLoaders for", device, time.localtime())
+    if by_patient:
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+                                 generator=torch.Generator(device=device))
+    else:
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                                      generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                                 generator=torch.Generator(device=device))
+
+    return train_loader, val_loader, test_loader, seed_value, current_fold
 
 def return_combined_loaders(file_name_1, file_name_2, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0,
                        only_testing=False, only_first=False):

@@ -25,6 +25,7 @@ if by_patient:
 else:
     parallel_images = 0
 
+medici_crossval = True
 mosaics_processing = False
 medici_processing = True
 combined_processing = True
@@ -44,6 +45,9 @@ if on_CSF:
             data_name_1 = 'priors_pvas_vas_raw_base'
         data_name = 'raw_mosaic_dataset_log'
         base_name = 'non_mosaic_mil_testing'
+    # elif medici_crossval:
+    #     data_name = 'medici_crossval_data'
+    #     base_name = 'medici_crossval'
     elif medici_processing:
         data_name = 'medici_preprocessed_data'
         base_name = 'medici_testing'

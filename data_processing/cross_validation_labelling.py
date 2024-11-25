@@ -39,11 +39,11 @@ def regression_training(trial):
     global base_name
     lr = 3e-5 # trial.suggest_float('lr', 3e-6, 1e-3, log=True)
     op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-    batch_size = trial.suggest_int('batch_size', 2, 50)
-    dropout = trial.suggest_float('dropout', 0, 0.7)
+    batch_size = 14 #trial.suggest_int('batch_size', 2, 50)
+    dropout = 0.3 #trial.suggest_float('dropout', 0, 0.7)
     # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
-    resnet_size = trial.suggest_categorical('resent_size', [18, 34, 50])
-    pooling_type = trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
+    resnet_size = 34 #trial.suggest_categorical('resent_size', [18, 34, 50])
+    pooling_type = 'mean' #trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
     pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
     replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
     transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
@@ -57,8 +57,10 @@ def regression_training(trial):
     print("Accessing data from", data_path, "\nConfig", best_model_name)
     print(time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    train_loader, val_loader, test_loader = return_medici_loaders(data_path, transformed,
-                                                                  weight_loss, weight_samples, batch_size)
+    train_loader, val_loader, test_loader, seed_value, current_fold = \
+        return_crossval_loaders(data_path, transformed,
+                                weight_loss, weight_samples, batch_size)
+    best_model_name = 'cv{}_{}_'.format(seed_value, current_fold) + best_model_name
     pilot_loader = return_medici_loaders(processed_pilot_file, transformed,
                                           weight_loss, weight_samples, batch_size,
                                           only_testing=True)
@@ -495,15 +497,25 @@ def regression_training(trial):
                         r2_weighting_offset=r2_weighting_offset
                         )
     print("Final evaluation on the test set")
-    test_loss, test_labels, test_preds, test_r2, test_r2w, test_err, test_conf, test_manu = \
+    test_loss, test_labels, test_preds, test_r2, test_r2w, test_err, test_conf, test_manu, \
+    patients, timepoints = \
         evaluate_medici(model, test_loader, criterion,
                         inverse_standardize_targets,
                         mean, std,
                         num_manufacturers=num_manufacturers,
                         manufacturer_mapping=manufacturer_mapping,
                         split_CC_and_MLO=split_CC_and_MLO,
-                        r2_weighting_offset=r2_weighting_offset
+                        r2_weighting_offset=r2_weighting_offset,
+                        return_names=True
                         )
+    file_path = "all_cross_fold_data.csv"
+    df = pd.read_csv(os.path.join(working_dir, file_path))
+    for patient, timepoint, prediction in zip(patients, timepoints, test_preds):
+        unique_condition = (df['case'] == int(patient)) & (df['timepoint'] == int(timepoint))
+        last_column_name = df.columns[-1]
+        df.loc[unique_condition, last_column_name] = prediction
+    df.to_csv(os.path.join(working_dir, file_path), index=False)
+
     print("Final evaluation on the pilot set")
     pilot_loss, pilot_labels, pilot_preds, pilot_r2, pilot_r2w, pilot_err, pilot_conf, pilot_manu = \
         evaluate_medici(model, pilot_loader, criterion,
@@ -580,7 +592,7 @@ def regression_training(trial):
 if __name__ == "__main__":
     if on_CSF and optuna_optimisation:
         print("Setting up optuna optimisation", time.localtime())
-        study_name = '{}_BML_optuna'.format(base_name)  # Unique identifier
+        study_name = '{}_cross_validation'.format(base_name)  # Unique identifier
         storage_url = 'sqlite:///{}.db'.format(study_name)
         if improving_loss_or_r2 == 'r2':
             direction = 'maximize'

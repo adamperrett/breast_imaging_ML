@@ -44,26 +44,42 @@ testing_data = 'priors_pvas_vas_raw_base'
 # model_location = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/models/best_models'
 data_location = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/models/mosaic_models'
 plot_save_location = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/data_processing/plots'
+if 'priors' in testing_data:
+    plot_save_location += '/priors_test'
+else:
+    plot_save_location += '/mosaic_test'
 save_not_plot = True
 # model_name = 'l_big_filter_lr1.9e-05x8_resnetrans_p1r0_drop0.0459_adam_t0_w0'
 # model_name = 'l_mosaic_n4_testing_lr0.000169x17_18attention_p1r0_d0.403_adam_t0_wl0_ws0'
 # model_name = 'l_mosaic_n1_pvas_testing_lr6.33e-05x11_34mean_p1r0_d0.59_adam_t0_wl0_ws0'
 model_names = [
-    'l_mosaic_n1_pvas_testing_lr6.33e-05x11_34mean_p1r0_d0.59_adam_t0_wl0_ws0',
+    # 'l_mosaic_n1_pvas_testing_lr6.33e-05x11_34mean_p1r0_d0.59_adam_t0_wl0_ws0',
     'l_mosaic_n4_testing_lr0.000169x17_18attention_p1r0_d0.403_adam_t0_wl0_ws0',
-    'l_mosaic_combined_pvas_testing_lr9.22e-05x9_18mean_p1r0_d0.00526_adam_t0_wl0_ws0'
+    # 'l_mosaic_combined_pvas_testing_lr9.22e-05x9_18mean_p1r0_d0.00526_adam_t0_wl0_ws0',
+    'l_mosaic_combined_pvas_testing_lr2.44e-05x17_34attention_p1r0_d0.0924_adam_t0_wl0_ws0',
+    # 'l_mosaic_combined_pvas_testing_lr3.93e-05x8_18mean_p1r0_d0.163_adam_t0_wl0_ws0'
+    'l_non_mosaic_mil_testing_lr0.000338x18_34attention_p1r0_d0.283_adam_t0_wl0_ws0'
 ]
 # base_model_name = 'PVAS mosaic model'
-base_model_names = ['PVAS mosaic',
-                    'MIL mosaic',
-                    'MIL combined',
-                    'PVAS non-mosaic']
+base_model_names = [
+    # 'PVAS mosaic',
+    'MIL unclean',
+    # 'MIL combined18a',
+    'MIL combined',
+    # 'MIL combined18b',
+    'MIL clean',
+    'pVAS clean'
+]
 all_model_string = base_model_names[0]
 for bmn in base_model_names[1:]:
     all_model_string += f' vs. {bmn}'
 # arch = 'pvas'
-archs = ['pvas', 'mil', 'mil']
-resnet_sizes = [34, 18, 18]
+archs = [
+    # 'pvas',
+    'mil', 'mil', 'mil']
+resnet_sizes = [
+    # 34,
+    18, 34, 34]
 pooling_type = 'attention'
 # test_name = model_name
 split = 0
@@ -160,8 +176,8 @@ with torch.no_grad():
             all_predictions[bmn].extend(test_outputs_original_scale.cpu().numpy())
         test_pvas_outputs_original_scale = torch.mean(torch.stack(pvas_output))
         pvas_loss = criterion(test_pvas_outputs_original_scale, test_targets_original_scale).mean()
-        running_loss['PVAS non-mosaic'] += pvas_loss.item() * inputs.size(0)
-        all_predictions['PVAS non-mosaic'].extend(test_pvas_outputs_original_scale.unsqueeze(0).cpu().numpy())
+        running_loss['pVAS clean'] += pvas_loss.item() * inputs.size(0)
+        all_predictions['pVAS clean'].extend(test_pvas_outputs_original_scale.unsqueeze(0).cpu().numpy())
 
         all_targets.extend(test_targets_original_scale.cpu().numpy())
         all_names.append(file_names)
@@ -202,14 +218,12 @@ for bmn in base_model_names:
     data[bmn+' predictions'] = (torch.tensor(all_predictions[bmn])).numpy()
 
 # Overall Bland-Altman Plot for predictions and pvas
+title = f'Overall Bland-Altman Plot'
 bland_altman_plot_multiple(
+    title,
     data['targets'],
     {bmn: data[bmn+' predictions'] for bmn in base_model_names}
 )
-title = f'Overall Bland-Altman Plot for {all_model_string}'
-plt.title(title)
-plt.xlabel('Mean of Target and Prediction')
-plt.ylabel('Difference (Error)')
 if not save_not_plot:
     plt.show()
 else:
@@ -224,14 +238,12 @@ bmi_categories = merged_data['BMI_category'].unique()
 
 for category in bmi_categories:
     category_data = merged_data[merged_data['BMI_category'] == category]
+    title = f'Bland-Altman Plot for BMI Category={category}'
     bland_altman_plot_multiple(
+        title,
         category_data['targets'],
         {bmn: category_data[bmn+' predictions'] for bmn in base_model_names}
     )
-    title = f'Bland-Altman Plot for BMI Category: {category} {all_model_string}'
-    plt.title(title)
-    plt.xlabel('Mean of Target and Prediction')
-    plt.ylabel('Difference (Error)')
     if not save_not_plot:
         plt.show()
     else:
@@ -253,10 +265,11 @@ for i, bmn in enumerate(base_model_names):
 pearson = {bmn: pearsonr(filtered_data['BMI'], filtered_data[bmn+' errors']) for bmn in base_model_names}
 
 title = f'Scatter Plot of Errors vs. BMI'
+added_title = ''
 for bmn in base_model_names:
-    title += f'\n{bmn} Correlation: {pearson[bmn][0]:.2f} (p={pearson[bmn][1]:.2e})'
+    added_title += f'\n{bmn} Correlation: {pearson[bmn][0]:.2f} (p={pearson[bmn][1]:.2e})'
 
-plt.title(title)
+plt.title(title+added_title)
 plt.xlabel('BMI')
 plt.ylabel('Prediction Error')
 plt.legend()
@@ -271,19 +284,89 @@ mamm_shapes = merged_data['Mamm_Shape'].unique()
 
 for shape in mamm_shapes:
     shape_data = merged_data[merged_data['Mamm_Shape'] == shape]
+    title = f'Bland-Altman Plot for Mamm Shape={shape}'
     bland_altman_plot_multiple(
+        title,
         shape_data['targets'],
         {bmn: shape_data[bmn + ' predictions'] for bmn in base_model_names}
     )
-    title = f'Bland-Altman Plot for Mamm Shape: {shape} {all_model_string}'
-    plt.title(title)
-    plt.xlabel('Mean of Target and Prediction')
-    plt.ylabel('Difference (Error)')
     if not save_not_plot:
         plt.show()
     else:
         plt.savefig(f"{plot_save_location}/{title}.png", bbox_inches='tight', format='png')
         plt.close()
+
+cancer_categories = merged_data['Cancer'].unique()
+for category in cancer_categories:
+    category_data = merged_data[merged_data['Cancer'] == category]
+    title = f'Bland-Altman Plot for Cancer={category}'
+    bland_altman_plot_multiple(
+        title,
+        category_data['targets'],
+        {bmn: category_data[bmn + ' predictions'] for bmn in base_model_names}
+    )
+    if not save_not_plot:
+        plt.show()
+    else:
+        plt.savefig(f"{plot_save_location}/{title}.png", bbox_inches='tight', format='png')
+        plt.close()
+
+cancer_categories = merged_data['HRT'].unique()
+for category in cancer_categories:
+    category_data = merged_data[merged_data['HRT'] == category]
+    title = f'Bland-Altman Plot for HRT={category}'
+    bland_altman_plot_multiple(
+        title,
+        category_data['targets'],
+        {bmn: category_data[bmn + ' predictions'] for bmn in base_model_names}
+    )
+    if not save_not_plot:
+        plt.show()
+    else:
+        plt.savefig(f"{plot_save_location}/{title}.png", bbox_inches='tight', format='png')
+        plt.close()
+
+alcohol_categories = merged_data['AlcoholYN'].unique()
+for category in alcohol_categories:
+    category_data = merged_data[merged_data['AlcoholYN'] == category]
+    title = f'Bland-Altman Plot for Alcohol={category}'
+    bland_altman_plot_multiple(
+        title,
+        category_data['targets'],
+        {bmn: category_data[bmn + ' predictions'] for bmn in base_model_names}
+    )
+    if not save_not_plot:
+        plt.show()
+    else:
+        plt.savefig(f"{plot_save_location}/{title}.png", bbox_inches='tight', format='png')
+        plt.close()
+
+filtered_data = merged_data.dropna(subset=['Months from entry to diag'])
+plt.figure(figsize=(15, 9))
+colors = plt.cm.get_cmap('tab10', len(base_model_names))
+for i, bmn in enumerate(base_model_names):
+    sns.regplot(x=filtered_data['Months from entry to diag'], y=filtered_data[bmn+' errors'], ci=None,
+                line_kws={"color": colors(i)},
+                scatter_kws={"color": colors(i)},
+                label=f'{bmn}')
+
+# Calculate and display the Pearson correlation coefficient for both
+pearson = {bmn: pearsonr(filtered_data['Months from entry to diag'], filtered_data[bmn+' errors']) for bmn in base_model_names}
+
+title = f'Scatter Plot of Errors vs. Months from entry to diagnosis'
+added_title = ''
+for bmn in base_model_names:
+    added_title += f'\n{bmn} Correlation: {pearson[bmn][0]:.2f} (p={pearson[bmn][1]:.2e})'
+
+plt.title(title+added_title)
+plt.xlabel('Months from entry to diagnosis')
+plt.ylabel('Prediction Error')
+plt.legend()
+if not save_not_plot:
+    plt.show()
+else:
+    plt.savefig(f"{plot_save_location}/{title}.png", bbox_inches='tight', format='png')
+    plt.close()
 
 csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
 # csv_name = 'volpara_priors_testing_weight.csv'

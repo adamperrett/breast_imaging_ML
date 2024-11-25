@@ -23,10 +23,11 @@ def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, m
     all_predictions = []
     all_manufacturers = []
     if return_names:
-        all_names = []
+        patients = []
+        timepoints = []
 
     with torch.no_grad():
-        for inputs, targets, weight, patient, manu, views in tqdm(dataloader):
+        for inputs, targets, timepoint, patient, manu, views in tqdm(dataloader):
             nan_mask = torch.isnan(inputs)
             if torch.sum(nan_mask) > 0:
                 print("Image is corrupted during evaluation", torch.sum(torch.isnan(inputs), dim=1))
@@ -56,7 +57,8 @@ def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, m
             all_predictions.extend(test_outputs_original_scale.cpu().numpy())
             all_manufacturers.extend(manu)
             if return_names:
-                all_names.extend(patient)
+                patients.extend(patient)
+                timepoints.extend(timepoint)
 
     epoch_loss = running_loss / len(dataloader.dataset)
     if torch.sum(torch.isnan(torch.tensor(all_targets))) > 0:
@@ -67,7 +69,8 @@ def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, m
     r2 = r2_score(all_targets, all_predictions)
     r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
     if return_names:
-        return epoch_loss, all_targets, all_predictions, r2, all_names
+        return epoch_loss, all_targets, all_predictions, r2, r2w, error, conf_int, all_manufacturers, \
+               patients, timepoints
     else:
         return epoch_loss, all_targets, all_predictions, r2, r2w, error, conf_int, all_manufacturers
 
