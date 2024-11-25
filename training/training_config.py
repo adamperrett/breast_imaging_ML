@@ -2,7 +2,7 @@ import sys
 
 
 num_epochs = 600
-patience = 20
+patience = 10
 improving_loss_or_r2 = 'loss'
 r2_weighting_offset = 0
 lr = 0.003
@@ -45,9 +45,9 @@ if on_CSF:
             data_name_1 = 'priors_pvas_vas_raw_base'
         data_name = 'raw_mosaic_dataset_log'
         base_name = 'non_mosaic_mil_testing'
-    # elif medici_crossval:
-    #     data_name = 'medici_crossval_data'
-    #     base_name = 'medici_crossval'
+    elif medici_crossval:
+        data_name = 'medici_5_vendors_preprocessed_data_combined'
+        base_name = 'medici_crossval'
     elif medici_processing:
         data_name = 'medici_preprocessed_data'
         base_name = 'medici_testing'
