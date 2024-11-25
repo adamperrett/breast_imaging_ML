@@ -512,7 +512,7 @@ def regression_training(trial):
     df = pd.read_csv(os.path.join(working_dir, file_path))
     for patient, timepoint, prediction in zip(patients, timepoints, test_preds):
         unique_condition = (df['case'] == int(patient)) & (df['timepoint'] == int(timepoint))
-        last_column_name = df.columns[-1]
+        last_column_name = 'crossval{}-{}'.format(seed_value, current_fold) #df.columns[-1]
         df.loc[unique_condition, last_column_name] = prediction
     df.to_csv(os.path.join(working_dir, file_path), index=False)
 
