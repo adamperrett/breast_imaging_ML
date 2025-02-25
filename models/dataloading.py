@@ -23,6 +23,59 @@ else:
     device = 'cpu'
 
 
+class RecurrenceLoader(Dataset):
+    def __init__(self, dataset, transform=None, by_patient_or_by_image='patient', weights=None):
+        self.transform = transform
+        self.by_patient_or_by_image = by_patient_or_by_image
+        self.weights = weights
+        self.dataset = []
+        for patient in dataset:
+            patient_data = []
+            for timepoint in dataset[patient]:
+                if timepoint == 'recurrence':
+                    patient_data.append(dataset[patient][timepoint])
+                else:
+                    if not dataset[patient][timepoint]['failed']:
+                        mlo_image = dataset[patient][timepoint]['mlo'][0].to(torch.float32)
+                        cc_image = dataset[patient][timepoint]['cc'][0].to(torch.float32)
+                        score = dataset[patient][timepoint]['score']
+                        manu = dataset[patient][timepoint]['manufacturer']
+                        patient_data.append([
+                            mlo_image,
+                            score,
+                            # score,  # weight
+                            timepoint,
+                            patient,
+                            manu,
+                            'mlo'
+                        ])
+                        patient_data.append([
+                            cc_image,
+                            score,
+                            # score,  # weight
+                            timepoint,
+                            patient,
+                            manu,
+                            'cc'
+                        ])
+            self.dataset.append(patient_data)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        patient = self.dataset[idx]
+        recurrence_data = list(patient[0].values())
+        image_data = patient[1:]
+        transformed_image_data = []
+        for image, score, timepoint, patient, manu, view in image_data:
+            if self.transform:
+                transformed_image = self.transform(image)
+                image = transformed_image
+            transformed_image_data.append([image, score, timepoint, patient, manu, view])
+
+        return transformed_image_data, recurrence_data
+
 class MediciLoader(Dataset):
     def __init__(self, dataset, transform=None, by_patient_or_by_image='patient', weights=None):
         self.transform = transform
@@ -264,10 +317,15 @@ def split_by_patient_and_stratefy_by_manufacturer(dataset_path, train_ratio, val
     patient_list = []
     manufactorer_index = {}
     for patient in tqdm(dataset):
+        if len(dataset[patient]) != 4:
+            continue
         patient_manufacturers.append([])
         patient_list.append(patient)
         for timepoint in dataset[patient]:
-            manufacturer = dataset[patient][timepoint]['manufacturer']
+            if timepoint == 'recurrence':
+                manufacturer = '{}'.format(dataset[patient][timepoint].values())
+            else:
+                manufacturer = dataset[patient][timepoint]['manufacturer']
             if manufacturer not in manufactorer_index:
                 manufactorer_index[manufacturer] = len(manufactorer_index)
             patient_manufacturers[-1].append(manufactorer_index[manufacturer])
@@ -766,6 +824,89 @@ def return_medici_loaders(file_name, transformed, weighted_loss, weighted_sampli
     train_dataset = MediciLoader(train_data, transform=data_transforms, weights=sample_weights)
     val_dataset = MediciLoader(val_data)
     test_dataset = MediciLoader(test_data)
+
+    # Create DataLoaders
+    print("Creating DataLoaders for", device, time.localtime())
+    if by_patient:
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
+                                      generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
+                                 generator=torch.Generator(device=device))
+    else:
+        if weighted_sampling:
+            train_loader = DataLoader(train_dataset,
+                                      batch_size=batch_size,
+                                      sampler=WeightedRandomSampler(weights=sample_weights,
+                                                                    num_samples=len(train_dataset),
+                                                                    replacement=True),
+                                      generator=torch.Generator(device=device))
+        else:
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                                      generator=torch.Generator(device=device))
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                                generator=torch.Generator(device=device))
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                                 generator=torch.Generator(device=device))
+
+    return train_loader, val_loader, test_loader
+
+def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0,
+                       only_testing=False):
+    print("Beginning data loading", time.localtime())
+
+    full_processed_data_address = os.path.join(processed_dataset_path, file_name+'.pth')
+
+    global mean, std
+
+    print("Processing data for the first time", time.localtime())
+    # Splitting the dataset
+    train_ratio, val_ratio, test_ratio = 0.7, 0.15, 0.15
+    train_data, val_data, test_data = split_by_patient_and_stratefy_by_manufacturer(
+        full_processed_data_address,
+        train_ratio, val_ratio, test_ratio, seed_value)
+
+    # Compute weights for the training set
+    targets = np.hstack([
+        [train_data[patient][0]['score'] for patient in train_data
+         if 0 in train_data[patient] and not train_data[patient][0]['failed']],
+        [train_data[patient][1]['score'] for patient in train_data
+         if 1 in train_data[patient] and not train_data[patient][1]['failed']],
+        [train_data[patient][3]['score'] for patient in train_data
+         if 3 in train_data[patient] and not train_data[patient][3]['failed']]])
+    computed_weights = targets  # compute_sample_weights(targets)
+
+    mean, std = compute_target_statistics(targets)
+
+    if weighted_sampling:
+        sample_weights = computed_weights
+    else:
+        sample_weights = None
+
+    if transformed:
+        # Define your augmentations
+        data_transforms = transforms.Compose([
+            transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
+            # Assuming images are PIL images; if not, you'll need to adjust or implement suitable transformations
+        ])
+    else:
+        data_transforms = None
+
+    # Create Dataset
+    print("Creating Dataset", time.localtime())
+    train_dataset = RecurrenceLoader(train_data, transform=data_transforms, weights=sample_weights)
+    val_dataset = RecurrenceLoader(val_data)
+    test_dataset = RecurrenceLoader(test_data)
 
     # Create DataLoaders
     print("Creating DataLoaders for", device, time.localtime())

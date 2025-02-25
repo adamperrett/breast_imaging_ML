@@ -2,8 +2,8 @@ import sys
 
 
 num_epochs = 600
-patience = 10
-improving_loss_or_r2 = 'loss'
+patience = 0
+improving_loss_or_r2 = 'auc'
 r2_weighting_offset = 0
 lr = 0.003
 momentum = 0.9
@@ -31,14 +31,18 @@ medici_processing = True
 combined_processing = True
 on_CSF = True
 optuna_optimisation = True
+recurrence_optimisation = True
 
 if on_CSF:
     # data_name = 'local_pvas_vas_raw_base'
-    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
-    # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
-    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
-    if mosaics_processing:
+    working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
+    processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
+    # working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    # processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
+    if recurrence_optimisation:
+        data_name = 'medici_classification_preprocessed_data'
+        base_name = 'medici_recurrence_testing'
+    elif mosaics_processing:
         if combined_processing:
             data_name_2 = 'raw_mosaic_dataset_log'
             # data_name_1 = 'procas_pvas_vas_raw_base'

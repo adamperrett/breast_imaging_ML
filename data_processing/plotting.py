@@ -12,6 +12,40 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.metrics import r2_score
+from sklearn.metrics import roc_curve, roc_auc_score
+
+
+def plot_auc_curves(all_labels, all_preds, data_subset, task_names=None, save_location=None, return_figure=True):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    title = "ROC Curves for {}".format(data_subset)
+
+    for i in range(len(all_preds)):  # Iterate over tasks
+        fpr, tpr, _ = roc_curve(all_labels[i], all_preds[i])
+        if len(set(all_labels[i])) > 1:  # Ensure both 0 and 1 exist
+            auc_score = roc_auc_score(all_labels[i], all_preds[i])
+        else:
+            print(f"Skipping AUC for Task {i + 1} {data_subset}: Only one class present in validation labels.")
+            auc_score = 0.0
+
+        if task_names:
+            label = f"{task_names[i]} (AUC = {auc_score:.3f})"
+        else:
+            label = f"Task {i + 1} (AUC = {auc_score:.3f})"
+
+        ax.plot(fpr, tpr, label=label)
+
+    plt.plot([0, 1], [0, 1], 'k--')  # Random classifier line
+    ax.set_xlabel("False Positive Rate (FPR)")
+    ax.set_ylabel("True Positive Rate (TPR)")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True)
+    if save_location:
+        fig.savefig(f"{save_location}/{title}.png", bbox_inches='tight', format='png')
+    if return_figure:
+        return fig
+    else:
+        plt.show()
 
 
 def plot_scatter(true_values, pred_values, title, save_location=None, return_figure=True, manufacturers=None):

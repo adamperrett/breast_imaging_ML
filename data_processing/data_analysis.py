@@ -12,6 +12,71 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.metrics import r2_score
+from torchmetrics.classification import BinaryAUROC
+from sklearn.metrics import accuracy_score
+
+
+def evaluate_recurrence(model, dataloader, criterion, inverse_standardize_targets, mean, std,
+                    num_manufacturers, manufacturer_mapping,
+                    return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
+    model.eval()
+    running_loss = 0.0
+    all_preds = [[] for _ in range(5)]
+    all_labels = [[] for _ in range(5)]
+    all_manufacturers = []
+    if return_names:
+        patients = []
+        timepoints = []
+
+    with torch.no_grad():
+        aucs = [BinaryAUROC() for _ in range(5)]
+        for image_data, recurrence_data in tqdm(dataloader):
+
+            recurrence_data = torch.stack(recurrence_data).to('cuda')
+
+            outputs = model.forward(image_data, manufacturer_mapping).to('cuda')
+            # test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
+            # test_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
+            # loss = criterion(test_outputs_original_scale, test_targets_original_scale).mean()
+            # running_loss += loss.item() * inputs.size(0)
+            split_losses = []
+            for i, t in enumerate(recurrence_data):
+                loss = criterion(t.to(torch.float32), outputs[:, i])
+                split_losses.append(loss)
+
+            total_loss = torch.sum(torch.stack(split_losses), dim=1).to('cpu')
+            running_loss += total_loss
+            # train_loss += weighted_loss.item() * inputs.size(0)
+
+            print("Before scaling loss\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
+            for i, auc in enumerate(aucs):
+                auc.update(outputs[:, i], recurrence_data[i])
+
+            for i in range(5):
+                all_preds[i].extend(outputs[:, i].cpu().numpy())
+                all_labels[i].extend(recurrence_data[i].cpu().numpy())
+
+            # all_targets.extend(test_targets_original_scale.cpu().numpy())
+            # all_predictions.extend(test_outputs_original_scale.cpu().numpy())
+            # all_manufacturers.extend(manu)
+            # if return_names:
+            #     patients.extend(patient)
+            #     timepoints.extend(timepoint)
+
+    epoch_loss = running_loss / len(dataloader.dataset)
+    auc_scores = torch.stack([auc.compute() for auc in aucs])
+    accuracies = []
+    full_binary = []
+    for i in range(5):
+        preds_binary = (np.array(all_preds[i]) > 0.5).astype(int)  # Apply threshold for binary classification
+        acc = accuracy_score(all_labels[i], preds_binary)
+        accuracies.append(acc)
+        full_binary.append(preds_binary)
+    if return_names:
+        return epoch_loss, all_labels, all_preds, torch.tensor(accuracies), full_binary, auc_scores, all_manufacturers, \
+               patients, timepoints
+    else:
+        return epoch_loss, all_labels, all_preds, torch.tensor(accuracies), full_binary, auc_scores, all_manufacturers
 
 
 def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, mean, std,
@@ -275,7 +340,7 @@ def bland_altman_plot_multiple(title, data1, data2_dict, mean_plotting=True, fon
         plt.axhline(md, color=colors(i), linestyle='-')
         plt.axhline(md + 1.96 * sd, color=colors(i), linestyle='--')
         plt.axhline(md - 1.96 * sd, color=colors(i), linestyle='--')
-        print("For", label, "\tmean:", md, "\tCI:", 1.96 * sd)
+        print("For", label, "\tmean:", md, "\tCI:", 1.96 * sd, "\tMSE:", np.mean(np.square(diff)))
     if mean_plotting:
         plt.xlabel('Mean of Target and Prediction')
     else:

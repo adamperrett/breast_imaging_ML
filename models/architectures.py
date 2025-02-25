@@ -36,6 +36,61 @@ class MILPooling(nn.Module):
         return weighted_attention_matrix
 
 
+class Recurrence_MIL_Model(nn.Module):
+    def __init__(self, pretrain, replicate, resnet_size, pooling_type='attention', dropout=0.5, split=True,
+                 num_manufacturers=6, include_vas=True):
+        super(Recurrence_MIL_Model, self).__init__()
+
+        self.replicate = replicate
+        self.extractor = returnModel(pretrain, replicate, resnet_size)
+        if resnet_size in [18, 34]:
+            self.D = 512
+        elif resnet_size in [50, 101, 152]:
+            self.D = 2048
+        self.K = 1024  # intermediate
+        self.L = 512
+        self.MIL = MILPooling(self.L, pooling_type)
+        self.split = split
+        if not split:
+            self.D += 2
+        self.include_vas = include_vas
+        if self.include_vas:
+            self.D += 1
+        self.D += 1  # for timepoint
+        self.D += num_manufacturers
+
+        ## Standard regressor
+        self.regressor = nn.Sequential(
+            nn.Linear(self.D, self.K),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+            nn.Linear(self.K, self.L),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+        )
+        self.output = nn.Linear(self.L, 5)  # 5 binary classifications squished together
+
+    ## Feed forward function
+    def forward(self, image_data, manufacturer_mapping):
+        image_features = []
+        for image, score, timepoint, patient, manu, view in image_data:
+            image, score, timepoint = image.to('cuda'), score.to('cuda'), timepoint.to('cuda')  # Send data to GPU
+            is_it_mlo = torch.stack([torch.tensor([0, 1] if v == 'mlo' else [1, 0]).to('cuda') for v in view])
+            manu_key = torch.stack([manufacturer_mapping[m] for m in manu])
+            H = self.extractor(image.unsqueeze(1))
+            if not self.split:
+                if self.include_vas:
+                    H = torch.hstack([H, is_it_mlo, manu_key, timepoint.unsqueeze(1), score.unsqueeze(1)])
+                else:
+                    H = torch.hstack([H, is_it_mlo, manu_key, timepoint.unsqueeze(1)])
+            r = self.regressor(H.to(torch.float32))
+            image_features.append(r)
+        image_features = torch.stack(image_features)
+        mil = self.MIL(image_features)
+        output = self.output(mil)
+        return output
+
+
 class Medici_MIL_Model(nn.Module):
     def __init__(self, pretrain, replicate, resnet_size, pooling_type='attention', dropout=0.5, split=True,
                  num_manufacturers=6):
