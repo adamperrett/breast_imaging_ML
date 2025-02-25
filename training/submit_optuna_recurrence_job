@@ -1,0 +1,12 @@
+#!/bin/bash --login
+#$ -cwd
+#$ -l nvidia_v100=1
+
+module load apps/binapps/anaconda3/2020.07
+module load tools/env/proxy
+
+source activate venv
+
+cd /mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training
+
+python3 optuna_recurrence_medici.py

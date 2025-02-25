@@ -2,7 +2,7 @@ import sys
 
 
 num_epochs = 600
-patience = 0
+patience = 10
 improving_loss_or_r2 = 'auc'
 r2_weighting_offset = 0
 lr = 0.003
@@ -35,10 +35,10 @@ recurrence_optimisation = True
 
 if on_CSF:
     # data_name = 'local_pvas_vas_raw_base'
-    working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
-    processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
-    # working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    # processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
+    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
+    # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
+    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     if recurrence_optimisation:
         data_name = 'medici_classification_preprocessed_data'
         base_name = 'medici_recurrence_testing'

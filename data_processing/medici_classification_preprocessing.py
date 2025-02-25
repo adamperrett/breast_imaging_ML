@@ -43,7 +43,7 @@ sns.set(style='dark')
 
 print("Reading data")
 
-csf = True
+csf = False
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
