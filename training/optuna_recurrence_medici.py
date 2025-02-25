@@ -18,11 +18,13 @@ from models.dataloading import *
 from data_processing.data_analysis import *
 # from data_processing.dcm_processing import *
 from data_processing.plotting import *
+from torchmetrics.classification import BinaryAUROC
 
 # time.sleep(60*60*14)
 print(time.localtime())
 seed_value = 27
 np.random.seed(seed_value)
+torch.set_default_dtype(torch.float32)
 torch.manual_seed(seed_value)
 if torch.cuda.is_available():
     torch.cuda.manual_seed(seed_value)
@@ -32,6 +34,16 @@ if torch.cuda.is_available():
 
 sns.set(style='dark')
 
+'''
+todo: 
+    - make the classification model
+- make AUC the test
+- proper error calculation
+    - processing of data into dataloader
+    - optuna params define
+- test scripts
+'''
+
 def round_to_(x, sig_fig=2):
    return round(x, -int(floor(log10(abs(x))))+sig_fig)
 
@@ -39,12 +51,13 @@ def regression_training(trial):
     global base_name
     lr = trial.suggest_float('lr', 3e-6, 1e-3, log=True)
     op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-    batch_size = trial.suggest_int('batch_size', 2, 50)
+    batch_size = 2 #trial.suggest_int('batch_size', 2, 50)
     dropout = trial.suggest_float('dropout', 0, 0.7)
     # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
-    resnet_size = trial.suggest_categorical('resent_size', [18, 34, 50])
-    pooling_type = trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
+    resnet_size = 18 #trial.suggest_categorical('resent_size', [18, 34, 50])
+    pooling_type = 'mean' #trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
     pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
+    include_vas = 1 #trial.suggest_categorical('include_vas', [0, 1])
     replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
     transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
     weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
@@ -57,11 +70,8 @@ def regression_training(trial):
     print("Accessing data from", data_path, "\nConfig", best_model_name)
     print(time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-    train_loader, val_loader, test_loader = return_medici_loaders(data_path, transformed,
+    train_loader, val_loader, test_loader = return_recurrence_loaders(data_path, transformed,
                                                                   weight_loss, weight_samples, batch_size)
-    pilot_loader = return_medici_loaders(processed_pilot_file, transformed,
-                                          weight_loss, weight_samples, batch_size,
-                                          only_testing=True)
 
     num_manufacturers = 8
     manufacturer_mapping = {'Philips': nn.functional.one_hot(torch.tensor(0),
@@ -86,11 +96,11 @@ def regression_training(trial):
     # model = SimpleCNN().to(device)
     #edit cuda
     print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
-    model = Medici_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
-                             split=split_CC_and_MLO, num_manufacturers=num_manufacturers).to('cuda')
+    model = Recurrence_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
+                             split=split_CC_and_MLO, num_manufacturers=num_manufacturers, include_vas=include_vas).to('cuda')
     epsilon = 0.
     # model = TransformerModel(epsilon=epsilon).to(device)
-    criterion = nn.MSELoss(reduction='none')  # Mean squared error for regression
+    criterion = nn.BCEWithLogitsLoss(reduction='none')  # BCE for classification
     if op_choice == 'd_adam':
         optimizer = DAdaptAdam(model.parameters())
     elif op_choice == 'd_sgd':
@@ -106,59 +116,15 @@ def regression_training(trial):
 
     # Training parameters
     not_improved_loss = 0
-    not_improved_r2 = 0
-    not_improved_r2w = 0
+    not_improved_auc = 0
     best_val_loss = float('inf')
     best_test_loss = float('inf')
-    best_pilot_loss = float('inf')
-    best_val_l_r2 = -float('inf')
-    best_test_l_r2 = -float('inf')
-    best_pilot_l_r2 = -float('inf')
-    best_val_rw_r2 = -float('inf')
-    best_test_rw_r2 = -float('inf')
-    best_pilot_rw_r2 = -float('inf')
-    best_val_l_r2w = -float('inf')
-    best_test_l_r2w = -float('inf')
-    best_pilot_l_r2w = -float('inf')
-    best_val_r_r2w = -float('inf')
-    best_test_r_r2w = -float('inf')
-    best_pilot_r_r2w = -float('inf')
-    best_val_r_loss = float('inf')
-    best_test_r_loss = float('inf')
-    best_pilot_r_loss = float('inf')
-    best_val_rw_loss = float('inf')
-    best_test_rw_loss = float('inf')
-    best_pilot_rw_loss = float('inf')
-    best_val_r2 = -float('inf')
-    best_test_r2 = -float('inf')
-    best_pilot_r2 = -float('inf')
-    best_val_r2w = -float('inf')
-    best_test_r2w = -float('inf')
-    best_pilot_r2w = -float('inf')
-    best_train_error_from_loss = 0
-    best_train_conf_int_from_loss = 0
-    best_train_error_from_r2 = 0
-    best_train_conf_int_from_r2 = 0
-    best_train_error_from_r2w = 0
-    best_train_conf_int_from_r2w = 0
-    best_val_error_from_loss = 0
-    best_val_conf_int_from_loss = 0
-    best_val_error_from_r2 = 0
-    best_val_conf_int_from_r2 = 0
-    best_val_error_from_r2w = 0
-    best_val_conf_int_from_r2w = 0
-    best_test_error_from_loss = 0
-    best_test_conf_int_from_loss = 0
-    best_test_error_from_r2 = 0
-    best_test_conf_int_from_r2 = 0
-    best_test_error_from_r2w = 0
-    best_test_conf_int_from_r2w = 0
-    best_pilot_error_from_loss = 0
-    best_pilot_conf_int_from_loss = 0
-    best_pilot_error_from_r2 = 0
-    best_pilot_conf_int_from_r2 = 0
-    best_pilot_error_from_r2w = 0
-    best_pilot_conf_int_from_r2w = 0
+    best_val_auc = float('inf')
+    best_test_auc = float('inf')
+    best_val_l_auc = -float('inf')
+    best_test_l_auc = -float('inf')
+    best_val_a_loss = float('inf')
+    best_test_a_loss = float('inf')
     # scheduler = ReduceLROnPlateau(optimizer, 'min', patience=int(patience/10), factor=0.9, verbose=True)
     writer = SummaryWriter(working_dir + '/results/' + best_model_name)
 
@@ -168,68 +134,69 @@ def regression_training(trial):
         model.train()
         all_targets = []
         all_predictions = []
-        train_loss = 0.0
+        train_loss = torch.zeros(5).to('cuda')
         scaled_train_loss = 0.0
-        for inputs, targets, weight, patient, manu, views in tqdm(train_loader):  # Simplified unpacking
-            inputs, targets, weights = inputs.to('cuda'), targets.to('cuda'), targets.to('cuda')  # Send data to GPU
+        aucs = [BinaryAUROC() for _ in range(5)]
+        for image_data, recurrence_data in tqdm(train_loader):  # Simplified unpacking
+            # inputs, targets, weights = inputs.to('cuda'), targets.to('cuda'), targets.to('cuda')  # Send data to GPU
             # print("inputs, targets, weights, dir, view")
             # print(inputs, "\n", targets, "\n", weights, "\n", dir, "\n", view)
-            print(f"Loaded images{best_model_name}\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-            if torch.sum(torch.isnan(inputs)) > 0:
-                print("Image is corrupted", torch.sum(torch.isnan(inputs), dim=1))
-                nan_mask = torch.isnan(inputs)
-                inputs[nan_mask] = 0
-
-            # Zero the parameter gradients
-            optimizer.zero_grad()
-
-            is_it_mlo = torch.zeros([len(views[0]), len(views), 2]).float().to('cuda')
-            if not split_CC_and_MLO:
-                for i in range(len(views[0])):
-                    for j in range(len(views)):
-                        if 'MLO' in views[j][i] or 'mlo' in views[j][i]:
-                            is_it_mlo[i][j][0] += 1
-                        else:
-                            is_it_mlo[i][j][1] += 1
-            manufacturer = torch.zeros([len(views[0]), len(views), num_manufacturers]).float().to('cuda')
-            for j in range(len(manufacturer[0])):
-                for i in range(len(manufacturer)):
-                    manufacturer[i][j] += manufacturer_mapping[manu[i]]
+            # print(f"Loaded images{best_model_name}\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
+            # if torch.sum(torch.isnan(image_data)) > 0:
+            #     print("Image is corrupted", torch.sum(torch.isnan(image_data), dim=1))
+            #     nan_mask = torch.isnan(image_data)
+            #     image_data[nan_mask] = 0
+            recurrence_data = torch.stack(recurrence_data).to('cuda')
 
             # Forward
             print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-            outputs = model.forward(inputs.unsqueeze(1), is_it_mlo, manufacturer)  # Add channel dimension
+            outputs = model.forward(image_data, manufacturer_mapping)  # Add channel dimension
             print("Before losses\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-            losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
-            print("Before weighting\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-            weighted_loss = (losses * weights).mean()  # Weighted loss
+            # losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
+            split_losses = []
+            for i, t in enumerate(recurrence_data):
+                loss = criterion(t.to(torch.float32), outputs[:, i])
+                split_losses.append(loss)
+            # print("Before weighting\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
+            # weighted_loss = (losses * weights).mean()  # Weighted loss
 
             # Backward + optimize
             print("Before backward\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-            weighted_loss.backward()
+            for n, l in enumerate(split_losses):
+                if n + 1 < len(split_losses):
+                    l.mean().backward(retain_graph=True)
+                else:
+                    l.mean().backward()
+            # weighted_loss.backward()
             optimizer.step()
+            optimizer.zero_grad()
 
-            train_loss += weighted_loss.item() * inputs.size(0)
-
-            print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             with torch.no_grad():
-                train_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
-                train_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
-                all_targets.extend(train_targets_original_scale.cpu().numpy())
-                all_predictions.extend(train_outputs_original_scale.cpu().numpy())
-                scaled_train_loss += criterion(train_outputs_original_scale,
-                                               train_targets_original_scale).mean().item() * inputs.size(0)
+                total_loss = torch.sum(torch.stack(split_losses), dim=1)
+                train_loss += total_loss
+                # train_loss += weighted_loss.item() * inputs.size(0)
+
+                print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
+                for i, auc in enumerate(aucs):
+                    auc.update(outputs[:, i], recurrence_data[i])
+            # with torch.no_grad():
+            #     train_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
+            #     train_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
+            #     all_targets.extend(train_targets_original_scale.cpu().numpy())
+            #     all_predictions.extend(train_outputs_original_scale.cpu().numpy())
+            #     scaled_train_loss += criterion(train_outputs_original_scale,
+            #                                    train_targets_original_scale).mean().item() * inputs.size(0)
             # break
         train_loss /= len(train_loader.dataset)
-        scaled_train_loss /= len(train_loader.dataset)
 
-        train_r2 = r2_score(all_targets, all_predictions)
-        train_r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
-        train_err, train_stderr, train_conf = compute_error_metrics(all_targets, all_predictions)
+        # train_r2 = r2_score(all_targets, all_predictions)
+        # train_r2w = r2_score(all_targets, all_predictions, sample_weight=np.array(all_targets)+r2_weighting_offset)
+        # train_err, train_stderr, train_conf = compute_error_metrics(all_targets, all_predictions)
+        auc_scores = [auc.compute() for auc in aucs]
         # Validation
         print("Evaluating on the validation set")
-        val_loss, val_labels, val_preds, val_r2, val_r2w, val_err, val_conf, val_manu = \
-            evaluate_medici(model, val_loader, criterion,
+        val_loss, val_labels, val_preds, val_auc, val_manu = \
+            evaluate_recurrence(model, val_loader, criterion,
                             inverse_standardize_targets, mean, std,
                             num_manufacturers=num_manufacturers,
                             manufacturer_mapping=manufacturer_mapping,
@@ -237,8 +204,8 @@ def regression_training(trial):
                             r2_weighting_offset=r2_weighting_offset
                             )
         print("Evaluating on the test set")
-        test_loss, test_labels, test_preds, test_r2, test_r2w, test_err, test_conf, test_manu = \
-            evaluate_medici(model, test_loader, criterion,
+        test_loss, test_labels, test_preds, test_auc, test_manu = \
+            evaluate_recurrence(model, test_loader, criterion,
                             inverse_standardize_targets, mean, std,
                             num_manufacturers=num_manufacturers,
                             manufacturer_mapping=manufacturer_mapping,
@@ -246,29 +213,30 @@ def regression_training(trial):
                             r2_weighting_offset=r2_weighting_offset
                             )
         print("Evaluating on the pilot set")
-        pilot_loss, pilot_labels, pilot_preds, pilot_r2, pilot_r2w, pilot_err, pilot_conf, pilot_manu = \
-            evaluate_medici(model, pilot_loader, criterion,
-                            inverse_standardize_targets, mean, std,
-                            num_manufacturers=num_manufacturers,
-                            manufacturer_mapping=manufacturer_mapping,
-                            split_CC_and_MLO=split_CC_and_MLO,
-                            r2_weighting_offset=r2_weighting_offset)
+        # pilot_loss, pilot_labels, pilot_preds, pilot_r2, pilot_r2w, pilot_err, pilot_conf, pilot_manu = \
+        #     evaluate_recurrence(model, pilot_loader, criterion,
+        #                     inverse_standardize_targets, mean, std,
+        #                     num_manufacturers=num_manufacturers,
+        #                     manufacturer_mapping=manufacturer_mapping,
+        #                     split_CC_and_MLO=split_CC_and_MLO,
+        #                     r2_weighting_offset=r2_weighting_offset)
         val_fig = plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, False, True,
                                manufacturers=val_manu)
         writer.add_figure("Validation Scatter Plot/{}".format(best_model_name), val_fig, epoch)
         test_fig = plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, False, True,
                                 manufacturers=test_manu)
         writer.add_figure("Test Scatter Plot/{}".format(best_model_name), test_fig, epoch)
-        pilot_fig = plot_scatter(pilot_labels, pilot_preds, "Pilot Scatter Plot " + best_model_name, False, True,
-                                 manufacturers=pilot_manu)
-        writer.add_figure("Pilot Scatter Plot/{}".format(best_model_name), pilot_fig, epoch)
+        # pilot_fig = plot_scatter(pilot_labels, pilot_preds, "Pilot Scatter Plot " + best_model_name, False, True,
+        #                          manufacturers=pilot_manu)
+        # writer.add_figure("Pilot Scatter Plot/{}".format(best_model_name), pilot_fig, epoch)
         print(f"Epoch {epoch + 1}/{num_epochs}, {best_model_name}"
               f"\nTrain Loss: {scaled_train_loss:.4f}, Val Loss: {val_loss:.4f}, "
               f"Test loss: {test_loss:.4f}, Pilot loss: {pilot_loss:.4f}"
               f"\nTrain R2: {train_r2:.4f}, Val R2: {val_r2:.4f}, "
               f"Test R2: {test_r2:.4f}, Pilot R2: {pilot_r2:.4f}"
               f"\nTrain R2w: {train_r2w:.4f}, Val R2w: {val_r2w:.4f}, "
-              f"Test R2w: {test_r2w:.4f}, Pilot R2w: {pilot_r2w:.4f}")
+              f"Test R2w: {test_r2w:.4f}, Pilot R2w: {pilot_r2w:.4f}"
+              )
         print(f"Epoch {epoch + 1}/{num_epochs}, {best_model_name}"
               f"\nTrain Loss: {scaled_train_loss:.4f}, Val Loss: {val_loss:.4f}, "
               f"Test loss: {test_loss:.4f}"
@@ -477,7 +445,7 @@ def regression_training(trial):
     # Evaluating on all datasets: train, val, test
     print("Final evaluation on the train set")
     train_loss, train_labels, train_preds, train_r2, train_r2w, train_err, train_conf, train_manu = \
-        evaluate_medici(model, train_loader, criterion,
+        evaluate_recurrence(model, train_loader, criterion,
                         inverse_standardize_targets, mean, std,
                         num_manufacturers=num_manufacturers,
                         manufacturer_mapping=manufacturer_mapping,
@@ -486,7 +454,7 @@ def regression_training(trial):
                         )
     print("Final evaluation on the validation set")
     val_loss, val_labels, val_preds, val_r2, val_r2w, val_err, val_conf, val_manu = \
-        evaluate_medici(model, val_loader, criterion,
+        evaluate_recurrence(model, val_loader, criterion,
                         inverse_standardize_targets,
                         mean, std,
                         num_manufacturers=num_manufacturers,
@@ -496,7 +464,7 @@ def regression_training(trial):
                         )
     print("Final evaluation on the test set")
     test_loss, test_labels, test_preds, test_r2, test_r2w, test_err, test_conf, test_manu = \
-        evaluate_medici(model, test_loader, criterion,
+        evaluate_recurrence(model, test_loader, criterion,
                         inverse_standardize_targets,
                         mean, std,
                         num_manufacturers=num_manufacturers,
@@ -504,15 +472,15 @@ def regression_training(trial):
                         split_CC_and_MLO=split_CC_and_MLO,
                         r2_weighting_offset=r2_weighting_offset
                         )
-    print("Final evaluation on the pilot set")
-    pilot_loss, pilot_labels, pilot_preds, pilot_r2, pilot_r2w, pilot_err, pilot_conf, pilot_manu = \
-        evaluate_medici(model, pilot_loader, criterion,
-                        inverse_standardize_targets,
-                        mean, std,
-                        num_manufacturers=num_manufacturers,
-                        manufacturer_mapping=manufacturer_mapping,
-                        split_CC_and_MLO=split_CC_and_MLO,
-                        r2_weighting_offset=r2_weighting_offset)
+    # print("Final evaluation on the pilot set")
+    # pilot_loss, pilot_labels, pilot_preds, pilot_r2, pilot_r2w, pilot_err, pilot_conf, pilot_manu = \
+    #     evaluate_recurrence(model, pilot_loader, criterion,
+    #                     inverse_standardize_targets,
+    #                     mean, std,
+    #                     num_manufacturers=num_manufacturers,
+    #                     manufacturer_mapping=manufacturer_mapping,
+    #                     split_CC_and_MLO=split_CC_and_MLO,
+    #                     r2_weighting_offset=r2_weighting_offset)
 
     # R2 Scores
     print(f"Train R2 Score: {train_r2:.4f}")
@@ -543,8 +511,8 @@ def regression_training(trial):
                  manufacturers=val_manu)
     plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, working_dir + '/results/',
                  manufacturers=test_manu)
-    plot_scatter(pilot_labels, pilot_preds, "Pilot Scatter Plot " + best_model_name, working_dir + '/results/',
-                 manufacturers=pilot_manu)
+    # plot_scatter(pilot_labels, pilot_preds, "Pilot Scatter Plot " + best_model_name, working_dir + '/results/',
+    #              manufacturers=pilot_manu)
 
     # Error distributions
     plot_error_vs_vas(train_labels, train_preds, "Train Error vs VAS " + best_model_name, working_dir + '/results/',
@@ -553,8 +521,8 @@ def regression_training(trial):
                       manufacturers=val_manu)
     plot_error_vs_vas(test_labels, test_preds, "Test Error vs VAS " + best_model_name, working_dir + '/results/',
                       manufacturers=test_manu)
-    plot_error_vs_vas(pilot_labels, pilot_preds, "Pilot Error vs VAS " + best_model_name, working_dir + '/results/',
-                      manufacturers=pilot_manu)
+    # plot_error_vs_vas(pilot_labels, pilot_preds, "Pilot Error vs VAS " + best_model_name, working_dir + '/results/',
+    #                   manufacturers=pilot_manu)
 
     # Error distributions
     plot_error_distribution(train_labels, train_preds, "Train Error Distribution " + best_model_name,
@@ -563,8 +531,8 @@ def regression_training(trial):
                             working_dir + '/results/', manufacturers=val_manu)
     plot_error_distribution(test_labels, test_preds, "Test Error Distribution " + best_model_name,
                             working_dir + '/results/', manufacturers=test_manu)
-    plot_error_distribution(pilot_labels, pilot_preds, "Pilot Error Distribution " + best_model_name,
-                            working_dir + '/results/', manufacturers=pilot_manu)
+    # plot_error_distribution(pilot_labels, pilot_preds, "Pilot Error Distribution " + best_model_name,
+    #                         working_dir + '/results/', manufacturers=pilot_manu)
 
     print("Done")
 
@@ -580,7 +548,7 @@ def regression_training(trial):
 if __name__ == "__main__":
     if on_CSF and optuna_optimisation:
         print("Setting up optuna optimisation", time.localtime())
-        study_name = '{}_BML_optuna'.format(base_name)  # Unique identifier
+        study_name = '{}_recurrence_optuna'.format(base_name)  # Unique identifier
         storage_url = 'sqlite:///{}.db'.format(study_name)
         if improving_loss_or_r2 == 'r2':
             direction = 'maximize'
