@@ -19,7 +19,7 @@ do
     ./qsub_medici_shell.sh
     let TRIALS_COUNTER=TRIALS_COUNTER+1
     echo "Submitted trial $TRIALS_COUNTER at $(date '+%Y-%m-%d %H:%M:%S')"
-    sleep 2m
+    sleep 10s
   else
     # Wait a bit before checking again
     sleep 1m
