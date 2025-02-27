@@ -52,7 +52,7 @@ def regression_training(trial):
     global base_name
     lr = trial.suggest_float('lr', 3e-6, 1e-3, log=True)
     op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-    batch_size = trial.suggest_int('batch_size', 2, 50)
+    batch_size = trial.suggest_int('batch_size', 2, 18)
     dropout = trial.suggest_float('dropout', 0, 0.7)
     # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
     resnet_size = 18 #trial.suggest_categorical('resent_size', [18, 34, 50])
