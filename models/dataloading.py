@@ -38,6 +38,7 @@ class RecurrenceLoader(Dataset):
                 else:
                     if dataset[patient][timepoint]['failed']:
                         failed = True
+                        break
                     mlo_image = dataset[patient][timepoint]['mlo'][0].to(torch.float32)
                     cc_image = dataset[patient][timepoint]['cc'][0].to(torch.float32)
                     score = dataset[patient][timepoint]['score']
