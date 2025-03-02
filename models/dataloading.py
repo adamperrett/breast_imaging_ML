@@ -31,34 +31,37 @@ class RecurrenceLoader(Dataset):
         self.dataset = []
         for patient in dataset:
             patient_data = []
+            failed = False
             for timepoint in dataset[patient]:
                 if timepoint == 'recurrence':
                     patient_data.append(dataset[patient][timepoint])
                 else:
-                    if not dataset[patient][timepoint]['failed']:
-                        mlo_image = dataset[patient][timepoint]['mlo'][0].to(torch.float32)
-                        cc_image = dataset[patient][timepoint]['cc'][0].to(torch.float32)
-                        score = dataset[patient][timepoint]['score']
-                        manu = dataset[patient][timepoint]['manufacturer']
-                        patient_data.append([
-                            mlo_image,
-                            score,
-                            # score,  # weight
-                            timepoint,
-                            patient,
-                            manu,
-                            'mlo'
-                        ])
-                        patient_data.append([
-                            cc_image,
-                            score,
-                            # score,  # weight
-                            timepoint,
-                            patient,
-                            manu,
-                            'cc'
-                        ])
-            self.dataset.append(patient_data)
+                    if dataset[patient][timepoint]['failed']:
+                        failed = True
+                    mlo_image = dataset[patient][timepoint]['mlo']#[0].to(torch.float32)
+                    cc_image = dataset[patient][timepoint]['cc']#[0].to(torch.float32)
+                    score = dataset[patient][timepoint]['score']
+                    manu = dataset[patient][timepoint]['manufacturer']
+                    patient_data.append([
+                        mlo_image,
+                        score,
+                        # score,  # weight
+                        timepoint,
+                        patient,
+                        manu,
+                        'mlo'
+                    ])
+                    patient_data.append([
+                        cc_image,
+                        score,
+                        # score,  # weight
+                        timepoint,
+                        patient,
+                        manu,
+                        'cc'
+                    ])
+            if not failed:
+                self.dataset.append(patient_data)
 
     def __len__(self):
         return len(self.dataset)
@@ -918,14 +921,14 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
                                                                     num_samples=len(train_dataset),
                                                                     replacement=True),
                                       collate_fn=custom_collate,
-                                      generator=torch.Generator(device=device))
+                                      generator=torch.Generator(device=device), drop_last=True)
         else:
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=custom_collate,
-                                      generator=torch.Generator(device=device))
+                                      generator=torch.Generator(device=device), drop_last=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
-                                generator=torch.Generator(device=device))
+                                generator=torch.Generator(device=device), drop_last=True)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=custom_collate,
-                                 generator=torch.Generator(device=device))
+                                 generator=torch.Generator(device=device), drop_last=True)
     else:
         if weighted_sampling:
             train_loader = DataLoader(train_dataset,
@@ -933,14 +936,14 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
                                       sampler=WeightedRandomSampler(weights=sample_weights,
                                                                     num_samples=len(train_dataset),
                                                                     replacement=True),
-                                      generator=torch.Generator(device=device))
+                                      generator=torch.Generator(device=device), drop_last=True)
         else:
             train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                                      generator=torch.Generator(device=device))
+                                      generator=torch.Generator(device=device), drop_last=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
-                                generator=torch.Generator(device=device))
+                                generator=torch.Generator(device=device), drop_last=True)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
-                                 generator=torch.Generator(device=device))
+                                 generator=torch.Generator(device=device), drop_last=True)
 
     return train_loader, val_loader, test_loader
 
