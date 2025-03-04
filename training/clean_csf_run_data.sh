@@ -3,9 +3,9 @@
 qdel submit_opt*
 rm *.db
 rm -rf results/*
-rm ../models/l*
-rm ../models/r*
-rm ../models/a*
+rm ../models/l_*
+rm ../models/r_*
+rm ../models/a_*
 rm submit_optuna_regression_job.*
 rm submit_optuna_recurrence_job.*
 rm submit_optuna_mosaic_job.*
