@@ -327,8 +327,8 @@ def regression_training(trial):
               f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f}"
               f"val auc: {torch.mean(best_val_l_auc):.4f} test auc {torch.mean(best_test_l_auc):.4f} "
               f"val rec auc: {val_rec_string} test rec auc {test_rec_string}")
-        val_rec_string = ["{}: {}".format(l, bta.cpu().numpy()) for bta, l in zip(best_val_auc, recurrence_mapping)]
-        test_rec_string = ["{}: {}".format(l, bta.cpu().numpy()) for bta, l in zip(best_test_auc, recurrence_mapping)]
+        val_rec_string = ["{}: {:.4f}".format(l, bta.cpu().numpy()) for bta, l in zip(best_val_auc, recurrence_mapping)]
+        test_rec_string = ["{}: {:.4f}".format(l, bta.cpu().numpy()) for bta, l in zip(best_test_auc, recurrence_mapping)]
         print(f"From best val AUC at epoch {epoch - not_improved_auc}: "
               f"val loss: {best_val_a_loss:.4f} test loss {best_test_a_loss:.4f} "
               f"val auc: {torch.mean(best_val_auc):.4f} test auc {torch.mean(best_test_auc):.4f} "
