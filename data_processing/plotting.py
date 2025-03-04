@@ -12,7 +12,33 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.metrics import r2_score
-from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix
+
+
+def plot_confusion_matrix(y_true, y_pred, task_name="Task", save_location=None, return_figure=True):
+    cm = confusion_matrix(y_true, y_pred)
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(6, 5))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
+                xticklabels=["Negative", "Positive"],
+                yticklabels=["Negative", "Positive"],
+                ax=ax)
+
+    ax.set_xlabel("Predicted Label")
+    ax.set_ylabel("Actual Label")
+    ax.set_title(f"Confusion Matrix for {task_name}")
+
+    # Save the figure if a save location is provided
+    if save_location:
+        fig.savefig(f"{save_location}/confusion_matrix_{task_name}.png", bbox_inches='tight', format='png')
+
+    # Return or show the figure
+    if return_figure:
+        return fig
+    else:
+        plt.show()
+
 
 
 def plot_auc_curves(all_labels, all_preds, data_subset, task_names=None, save_location=None, return_figure=True):
