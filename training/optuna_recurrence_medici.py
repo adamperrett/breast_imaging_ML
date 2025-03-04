@@ -72,7 +72,8 @@ def regression_training(trial):
     print(time.localtime())
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
     train_loader, val_loader, test_loader = return_recurrence_loaders(data_path, transformed,
-                                                                  weight_loss, weight_samples, batch_size)
+                                                                      weight_loss, weight_samples, batch_size,
+                                                                      seed_value=seed_value)
 
     num_manufacturers = 8
     manufacturer_mapping = {'Philips': nn.functional.one_hot(torch.tensor(0),
@@ -298,8 +299,8 @@ def regression_training(trial):
         if torch.mean(val_auc) > best_val_auc:
             best_val_a_loss = torch.mean(val_loss)
             best_test_a_loss = torch.mean(test_loss)
-            best_val_auc = torch.mean(val_auc)
-            best_test_auc = torch.mean(test_auc)
+            best_val_auc = val_auc
+            best_test_auc = test_auc
             not_improved_auc = 0
             print("Validation AUC improved. Saving best_model.")
             torch.save(model.state_dict(), working_dir + '/../models/a_' + best_model_name)
@@ -308,16 +309,20 @@ def regression_training(trial):
         if torch.mean(val_loss) < best_val_loss:
             best_val_loss = torch.mean(val_loss)
             best_test_loss = torch.mean(test_loss)
+            best_val_l_auc = val_auc
+            best_test_l_auc = test_auc
             not_improved_loss = 0
             print("Validation Loss improved. Saving best_model.")
             torch.save(model.state_dict(), working_dir + '/../models/l_' + best_model_name)
         else:
             not_improved_loss += 1
-        print(f"From best val loss at epoch {epoch - not_improved_loss}:\n "
+        print(f"From best val loss at epoch {epoch - not_improved_loss}: "
               f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f}"
-              f"val auc: {best_val_l_auc:.4f} test auc {best_test_l_auc:.4f}")
-        print(f"From best val AUC at epoch {epoch - not_improved_auc}:\n "
-              f"val loss: {best_val_a_loss:.4f} test loss {best_test_a_loss:.4f}"
+              f"val auc: {torch.mean(best_val_l_auc):.4f} test auc {torch.mean(best_test_l_auc):.4f} "
+              f"val rec auc: {best_val_l_auc:.4f} test rec auc {best_test_l_auc:.4f}")
+        print(f"From best val AUC at epoch {epoch - not_improved_auc}: "
+              f"val loss: {best_val_a_loss:.4f} test loss {best_test_a_loss:.4f} "
+              f"val auc: {torch.mean(best_val_auc):.4f} test auc {torch.mean(best_test_auc):.4f} "
               f"val auc: {best_val_auc:.4f} test auc {best_test_auc:.4f}")
         if improving_loss_or_r2 == 'loss':
             time_since_improved = not_improved_loss
@@ -328,10 +333,16 @@ def regression_training(trial):
         writer.add_scalar('Best Loss/Validation Loss from AUC', best_val_a_loss, epoch)
         writer.add_scalar('Best Loss/Test Loss from Loss', best_test_loss, epoch)
         writer.add_scalar('Best Loss/Test Loss from AUC', best_test_a_loss, epoch)
-        writer.add_scalar('Best AUC/Validation AUC from Loss', best_val_l_auc, epoch)
-        writer.add_scalar('Best AUC/Validation AUC from AUC', best_val_auc, epoch)
-        writer.add_scalar('Best AUC/Test AUC from Loss', best_test_l_auc, epoch)
-        writer.add_scalar('Best AUC/Test AUC from AUC', best_test_auc, epoch)
+        writer.add_scalar('Best AUC/Validation AUC from Loss', torch.mean(best_val_l_auc), epoch)
+        writer.add_scalar('Best AUC/Validation AUC from AUC', torch.mean(best_val_auc), epoch)
+        writer.add_scalar('Best AUC/Test AUC from Loss', torch.mean(best_test_l_auc), epoch)
+        writer.add_scalar('Best AUC/Test AUC from AUC', torch.mean(best_test_auc), epoch)
+        for i in range(len(best_test_auc)):
+            current_output_label = recurrence_mapping[i]
+            writer.add_scalar('Best rec AUC l/Validation {}'.format(current_output_label), best_val_l_auc[i], epoch)
+            writer.add_scalar('Best rec AUC l/Test {}'.format(current_output_label), best_test_l_aucauc[i], epoch)
+            writer.add_scalar('Best rec AUC/Validation {}'.format(current_output_label), best_val_auc[i], epoch)
+            writer.add_scalar('Best rec AUC/Test {}'.format(current_output_label), best_test_auc[i], epoch)
 
         if time_since_improved >= patience:
             print("Early stopping")
@@ -400,21 +411,82 @@ def regression_training(trial):
     print(f"Test Loss: {torch.mean(test_loss):.4f}")
     print(f"Test AUC: {torch.mean(test_auc):.4f}")
     print(f"Test Acc: {torch.mean(test_acc):.4f}")
+    for i in range(len(train_auc)):
+        current_output_label = recurrence_mapping[i]
+        print("For label auc ", current_output_label, ""
+              "Train rec AUC:", train_auc[i], ""
+              "Val rec AUC:", val_auc[i], ""
+              "Test rec AUC:", test_auc[i])
+
+    try:
+        for i in range(5):  # Assuming 5 tasks
+            y_true = np.array(train_labels[i])
+            y_pred = np.array(train_class[i])
+
+            if len(set(y_true)) > 1:  # Ensure both classes exist
+                plot_confusion_matrix(y_true, y_pred,
+                                      task_name=f"training {recurrence_mapping[i]}",
+                                      save_location=working_dir + '/results/')
+            else:
+                print(f"Skipping confusion matrix for Task {i + 1}: Only one class present.")
+        for i in range(5):  # Assuming 5 tasks
+            y_true = np.array(val_labels[i])
+            y_pred = np.array(val_class[i])
+
+            if len(set(y_true)) > 1:  # Ensure both classes exist
+                plot_confusion_matrix(y_true, y_pred,
+                                      task_name=f"validation {recurrence_mapping[i]}",
+                                      save_location=working_dir + '/results/')
+            else:
+                print(f"Skipping confusion matrix for Task {i + 1}: Only one class present.")
+        for i in range(5):  # Assuming 5 tasks
+            y_true = np.array(test_labels[i])
+            y_pred = np.array(test_class[i])
+
+            if len(set(y_true)) > 1:  # Ensure both classes exist
+                plot_confusion_matrix(y_true, y_pred,
+                                      task_name=f"testing {recurrence_mapping[i]}",
+                                      save_location=working_dir + '/results/')
+            else:
+                print(f"Skipping confusion matrix for Task {i + 1}: Only one class present.")
+    except:
+        print("Confusipon matrix is broken")
 
     # Scatter plots
-    plot_scatter(train_labels, train_preds, "Train Scatter Plot " + best_model_name, working_dir + '/results/',
-                 manufacturers=train_manu)
-    plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, working_dir + '/results/',
-                 manufacturers=val_manu)
-    plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, working_dir + '/results/',
-                 manufacturers=test_manu)
+    try:
+        plot_scatter(train_labels, train_class, "Train Scatter Plot " + best_model_name, working_dir + '/results/',
+                     manufacturers=train_manu)
+        plot_scatter(val_labels, val_class, "Validation Scatter Plot " + best_model_name, working_dir + '/results/',
+                     manufacturers=val_manu)
+        plot_scatter(test_labels, test_class, "Test Scatter Plot " + best_model_name, working_dir + '/results/',
+                     manufacturers=test_manu)
+    except:
+        print("scatter plotting is broken, doing old plotting")
+        plot_scatter(train_labels, train_preds, "Train Scatter Plot " + best_model_name, working_dir + '/results/',
+                     manufacturers=train_manu)
+        plot_scatter(val_labels, val_preds, "Validation Scatter Plot " + best_model_name, working_dir + '/results/',
+                     manufacturers=val_manu)
+        plot_scatter(test_labels, test_preds, "Test Scatter Plot " + best_model_name, working_dir + '/results/',
+                     manufacturers=test_manu)
     # plot_scatter(pilot_labels, pilot_preds, "Pilot Scatter Plot " + best_model_name, working_dir + '/results/',
     #              manufacturers=pilot_manu)
 
     # Error distributions
-    plot_auc_curves(train_labels, train_class, "Train " + best_model_name, recurrence_mapping, working_dir + '/results/')
-    plot_auc_curves(val_labels, val_class, "Validation " + best_model_name, recurrence_mapping, working_dir + '/results/')
-    plot_auc_curves(test_labels, test_class, "Test " + best_model_name, recurrence_mapping, working_dir + '/results/')
+    try:
+        plot_auc_curves(train_labels, train_preds, "Train " + best_model_name, recurrence_mapping,
+                        working_dir + '/results/')
+        plot_auc_curves(val_labels, val_preds, "Validation " + best_model_name, recurrence_mapping,
+                        working_dir + '/results/')
+        plot_auc_curves(test_labels, test_preds, "Test " + best_model_name, recurrence_mapping,
+                        working_dir + '/results/')
+    except:
+        print("auc plotting is broken, doing old plotting")
+        plot_auc_curves(train_labels, train_class, "Train " + best_model_name, recurrence_mapping,
+                        working_dir + '/results/')
+        plot_auc_curves(val_labels, val_class, "Validation " + best_model_name, recurrence_mapping,
+                        working_dir + '/results/')
+        plot_auc_curves(test_labels, test_class, "Test " + best_model_name, recurrence_mapping,
+                        working_dir + '/results/')
 
     print("Done")
 
