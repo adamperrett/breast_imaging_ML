@@ -297,7 +297,11 @@ def regression_training(trial):
                     print(f"Attempt {attempt + 1} failed with database lock error: {e}. Retrying in {20} seconds...")
                     time.sleep(20)
 
-        if torch.mean(val_auc) > best_val_auc:
+        if best_val_auc != -float('inf'):
+            dealing_with_my_bad_coding = torch.mean(best_val_auc)
+        else:
+            dealing_with_my_bad_coding = best_val_auc
+        if torch.mean(val_auc) > dealing_with_my_bad_coding:
             best_val_a_loss = torch.mean(val_loss)
             best_test_a_loss = torch.mean(test_loss)
             best_val_auc = val_auc
@@ -317,8 +321,8 @@ def regression_training(trial):
             torch.save(model.state_dict(), working_dir + '/../models/l_' + best_model_name)
         else:
             not_improved_loss += 1
-        val_rec_string = ["{}: {}".format(l, bta.cpu().numpy()) for bta, l in zip(best_val_l_auc, recurrence_mapping)]
-        test_rec_string = ["{}: {}".format(l, bta.cpu().numpy()) for bta, l in zip(best_test_l_auc, recurrence_mapping)]
+        val_rec_string = ["{}: {:.4f}".format(l, bta.cpu().numpy()) for bta, l in zip(best_val_l_auc, recurrence_mapping)]
+        test_rec_string = ["{}: {:.4f}".format(l, bta.cpu().numpy()) for bta, l in zip(best_test_l_auc, recurrence_mapping)]
         print(f"From best val loss at epoch {epoch - not_improved_loss}: "
               f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f}"
               f"val auc: {torch.mean(best_val_l_auc):.4f} test auc {torch.mean(best_test_l_auc):.4f} "
