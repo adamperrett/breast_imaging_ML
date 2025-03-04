@@ -52,7 +52,7 @@ def regression_training(trial):
     global base_name
     lr = trial.suggest_float('lr', 3e-6, 1e-3, log=True)
     op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-    batch_size = trial.suggest_int('batch_size', 2, 18)
+    batch_size = trial.suggest_int('batch_size', 2, 17)
     dropout = trial.suggest_float('dropout', 0, 0.7)
     # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
     resnet_size = 18 #trial.suggest_categorical('resent_size', [18, 34, 50])
@@ -148,6 +148,7 @@ def regression_training(trial):
         scaled_train_loss = 0.0
         aucs = [BinaryAUROC() for _ in range(5)]
         for image_data, recurrence_data in tqdm(train_loader):  # Simplified unpacking
+            # continue
             # inputs, targets, weights = inputs.to('cuda'), targets.to('cuda'), targets.to('cuda')  # Send data to GPU
             # print("inputs, targets, weights, dir, view")
             # print(inputs, "\n", targets, "\n", weights, "\n", dir, "\n", view)
@@ -316,14 +317,18 @@ def regression_training(trial):
             torch.save(model.state_dict(), working_dir + '/../models/l_' + best_model_name)
         else:
             not_improved_loss += 1
+        val_rec_string = ["{}: {}".format(l, np.array(bta)) for bta, l in zip(best_val_l_auc, recurrence_mapping)]
+        test_rec_string = ["{}: {}".format(l, np.array(bta)) for bta, l in zip(best_test_l_auc, recurrence_mapping)]
         print(f"From best val loss at epoch {epoch - not_improved_loss}: "
               f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f}"
               f"val auc: {torch.mean(best_val_l_auc):.4f} test auc {torch.mean(best_test_l_auc):.4f} "
-              f"val rec auc: {[bta for bta in best_val_l_auc]} test rec auc {[bta for bta in best_test_l_auc]}")
+              f"val rec auc: {val_rec_string} test rec auc {test_rec_string}")
+        val_rec_string = ["{}: {}".format(l, np.array(bta)) for bta, l in zip(best_val_auc, recurrence_mapping)]
+        test_rec_string = ["{}: {}".format(l, np.array(bta)) for bta, l in zip(best_test_auc, recurrence_mapping)]
         print(f"From best val AUC at epoch {epoch - not_improved_auc}: "
               f"val loss: {best_val_a_loss:.4f} test loss {best_test_a_loss:.4f} "
               f"val auc: {torch.mean(best_val_auc):.4f} test auc {torch.mean(best_test_auc):.4f} "
-              f"val rec auc: {[bta for bta in best_val_auc]} test rec auc {[bta for bta in best_test_auc]}")
+              f"val rec auc: {val_rec_string} test rec auc {test_rec_string}")
         if improving_loss_or_r2 == 'loss':
             time_since_improved = not_improved_loss
         else:
@@ -340,7 +345,7 @@ def regression_training(trial):
         for i in range(len(best_test_auc)):
             current_output_label = recurrence_mapping[i]
             writer.add_scalar('Best rec AUC l/Validation {}'.format(current_output_label), best_val_l_auc[i], epoch)
-            writer.add_scalar('Best rec AUC l/Test {}'.format(current_output_label), best_test_l_aucauc[i], epoch)
+            writer.add_scalar('Best rec AUC l/Test {}'.format(current_output_label), best_test_l_auc[i], epoch)
             writer.add_scalar('Best rec AUC/Validation {}'.format(current_output_label), best_val_auc[i], epoch)
             writer.add_scalar('Best rec AUC/Test {}'.format(current_output_label), best_test_auc[i], epoch)
 
