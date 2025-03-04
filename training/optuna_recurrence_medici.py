@@ -297,7 +297,7 @@ def regression_training(trial):
                     print(f"Attempt {attempt + 1} failed with database lock error: {e}. Retrying in {20} seconds...")
                     time.sleep(20)
 
-        if best_val_auc != -float('inf'):
+        if epoch > 0:
             dealing_with_my_bad_coding = torch.mean(best_val_auc)
         else:
             dealing_with_my_bad_coding = best_val_auc
