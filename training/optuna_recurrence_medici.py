@@ -319,11 +319,11 @@ def regression_training(trial):
         print(f"From best val loss at epoch {epoch - not_improved_loss}: "
               f"val loss: {best_val_loss:.4f} test loss {best_test_loss:.4f}"
               f"val auc: {torch.mean(best_val_l_auc):.4f} test auc {torch.mean(best_test_l_auc):.4f} "
-              f"val rec auc: {best_val_l_auc:.4f} test rec auc {[bta for bta in best_test_l_auc]}")
+              f"val rec auc: {[bta for bta in best_val_l_auc]} test rec auc {[bta for bta in best_test_l_auc]}")
         print(f"From best val AUC at epoch {epoch - not_improved_auc}: "
               f"val loss: {best_val_a_loss:.4f} test loss {best_test_a_loss:.4f} "
               f"val auc: {torch.mean(best_val_auc):.4f} test auc {torch.mean(best_test_auc):.4f} "
-              f"val auc: {best_val_auc:.4f} test auc {[bta for bta in best_test_auc]}")
+              f"val rec auc: {[bta for bta in best_val_auc]} test rec auc {[bta for bta in best_test_auc]}")
         if improving_loss_or_r2 == 'loss':
             time_since_improved = not_improved_loss
         else:
