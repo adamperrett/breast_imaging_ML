@@ -309,6 +309,7 @@ if __name__ == "__main__":
             }
     save_location_and_name = os.path.join(save_dir, save_name)
     print("All failed reads:\n", failed_dycom_reads)
+    print("All failed recurrence data:\n", missing_recurrence_data)
     print("Saving to", save_location_and_name, "with", len(patient_data), 'women')
     torch.save(patient_data, save_location_and_name)
 

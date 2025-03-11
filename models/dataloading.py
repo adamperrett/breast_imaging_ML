@@ -327,6 +327,10 @@ def split_by_patient_and_stratefy_by_manufacturer(dataset_path, train_ratio, val
         patient_list.append(patient)
         for timepoint in dataset[patient]:
             if timepoint == 'recurrence':
+                new_cancer = dataset[patient][timepoint]['Ipsbreast'] or dataset[patient][timepoint]['Contrabreast']
+                dataset[patient][timepoint]['new_cancer'] = new_cancer
+                del dataset[patient][timepoint]['Ipsbreast']
+                del dataset[patient][timepoint]['Contrabreast']
                 manufacturer = '{}'.format(dataset[patient][timepoint].values())
             else:
                 manufacturer = dataset[patient][timepoint]['manufacturer']
@@ -875,7 +879,7 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
 
     print("Processing data for the first time", time.localtime())
     # Splitting the dataset
-    train_ratio, val_ratio, test_ratio = 0.6, 0.2, 0.2
+    train_ratio, val_ratio, test_ratio = 0.5, 0.25, 0.25
     train_data, val_data, test_data = split_by_patient_and_stratefy_by_manufacturer(
         full_processed_data_address,
         train_ratio, val_ratio, test_ratio, seed_value)

@@ -64,8 +64,8 @@ def regression_training(trial):
     weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
     weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
     data_path = processed_dataset_file
-    best_model_name = '{}_lr{}x{}_{}{}_p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
-        base_name, round_to_(lr), batch_size, resnet_size, pooling_type, pre_trained,
+    best_model_name = '{}_lr{}x{}_{}{}_v{}p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
+        base_name, round_to_(lr), batch_size, resnet_size, pooling_type, include_vas, pre_trained,
         replicate, round_to_(dropout), op_choice, transformed, weight_loss, weight_samples)
 
     print("Accessing data from", data_path, "\nConfig", best_model_name)
@@ -98,9 +98,11 @@ def regression_training(trial):
         'breastrec',
         'distrfievent',
         'local',
-        'Ipsbreast',
-        'Contrabreast',
+        # 'Ipsbreast',
+        # 'Contrabreast',
+        'new_cancer',
     ]
+    num_classes = len(recurrence_mapping)
 
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
@@ -142,11 +144,11 @@ def regression_training(trial):
     print("Current GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
     for epoch in tqdm(range(num_epochs)):
         model.train()
-        all_preds = [[] for _ in range(5)]
-        all_labels = [[] for _ in range(5)]
-        train_loss = torch.zeros(5).to('cuda')
+        all_preds = [[] for _ in range(num_classes)]
+        all_labels = [[] for _ in range(num_classes)]
+        train_loss = torch.zeros(num_classes).to('cuda')
         scaled_train_loss = 0.0
-        aucs = [BinaryAUROC() for _ in range(5)]
+        aucs = [BinaryAUROC() for _ in range(num_classes)]
         for image_data, recurrence_data in tqdm(train_loader):  # Simplified unpacking
             # continue
             # inputs, targets, weights = inputs.to('cuda'), targets.to('cuda'), targets.to('cuda')  # Send data to GPU
@@ -191,7 +193,7 @@ def regression_training(trial):
                 for i, auc in enumerate(aucs):
                     auc.update(outputs[:, i], recurrence_data[i])
 
-                for i in range(5):
+                for i in range(num_classes):
                     all_preds[i].extend(outputs[:, i].cpu().numpy())
                     all_labels[i].extend(recurrence_data[i].cpu().numpy())
             # with torch.no_grad():
@@ -206,7 +208,7 @@ def regression_training(trial):
         train_auc = torch.stack([auc.compute() for auc in aucs])
         train_acc = []
         train_class = []
-        for i in range(5):
+        for i in range(num_classes):
             preds_binary = (np.array(all_preds[i]) > 0.5).astype(int)  # Apply threshold for binary classification
             acc = accuracy_score(all_labels[i], preds_binary)
             train_acc.append(acc)
@@ -428,38 +430,38 @@ def regression_training(trial):
               "Test rec AUC:", test_auc[i])
 
     try:
-        for i in range(5):  # Assuming 5 tasks
+        for i in range(num_classes):
             y_true = np.array(train_labels[i])
             y_pred = np.array(train_class[i])
 
             if len(set(y_true)) > 1:  # Ensure both classes exist
                 plot_confusion_matrix(y_true, y_pred,
-                                      task_name=f"training {recurrence_mapping[i]}",
+                                      task_name=f"training {recurrence_mapping[i]} {best_model_name}",
                                       save_location=working_dir + '/results/')
             else:
                 print(f"Skipping confusion matrix for Task {i + 1}: Only one class present.")
-        for i in range(5):  # Assuming 5 tasks
+        for i in range(num_classes):
             y_true = np.array(val_labels[i])
             y_pred = np.array(val_class[i])
 
             if len(set(y_true)) > 1:  # Ensure both classes exist
                 plot_confusion_matrix(y_true, y_pred,
-                                      task_name=f"validation {recurrence_mapping[i]}",
+                                      task_name=f"validation {recurrence_mapping[i]} {best_model_name}",
                                       save_location=working_dir + '/results/')
             else:
                 print(f"Skipping confusion matrix for Task {i + 1}: Only one class present.")
-        for i in range(5):  # Assuming 5 tasks
+        for i in range(num_classes):
             y_true = np.array(test_labels[i])
             y_pred = np.array(test_class[i])
 
             if len(set(y_true)) > 1:  # Ensure both classes exist
                 plot_confusion_matrix(y_true, y_pred,
-                                      task_name=f"testing {recurrence_mapping[i]}",
+                                      task_name=f"testing {recurrence_mapping[i]} {best_model_name}",
                                       save_location=working_dir + '/results/')
             else:
                 print(f"Skipping confusion matrix for Task {i + 1}: Only one class present.")
     except:
-        print("Confusipon matrix is broken")
+        print("Confusion matrix is broken")
 
     # Scatter plots
     try:

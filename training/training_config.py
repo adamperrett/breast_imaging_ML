@@ -41,7 +41,7 @@ if on_CSF:
     processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     if recurrence_optimisation:
         data_name = 'medici_classification_preprocessed_data'
-        base_name = 'medici_recurrence_testing'
+        base_name = 'medici_4recurrence_52525'
     elif mosaics_processing:
         if combined_processing:
             data_name_2 = 'raw_mosaic_dataset_log'
