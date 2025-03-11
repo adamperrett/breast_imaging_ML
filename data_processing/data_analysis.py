@@ -17,19 +17,20 @@ from sklearn.metrics import accuracy_score
 
 
 def evaluate_recurrence(model, dataloader, criterion, inverse_standardize_targets, mean, std,
-                    num_manufacturers, manufacturer_mapping,
+                    num_manufacturers, manufacturer_mapping, recurrence_mapping,
                     return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
     model.eval()
     running_loss = 0.0
-    all_preds = [[] for _ in range(5)]
-    all_labels = [[] for _ in range(5)]
+    num_classes = len(recurrence_mapping)
+    all_preds = [[] for _ in range(num_classes)]
+    all_labels = [[] for _ in range(num_classes)]
     all_manufacturers = []
     if return_names:
         patients = []
         timepoints = []
 
     with torch.no_grad():
-        aucs = [BinaryAUROC() for _ in range(5)]
+        aucs = [BinaryAUROC() for _ in range(num_classes)]
         for image_data, recurrence_data in tqdm(dataloader):
 
             recurrence_data = torch.stack(recurrence_data).to('cuda')
@@ -67,7 +68,7 @@ def evaluate_recurrence(model, dataloader, criterion, inverse_standardize_target
     auc_scores = torch.stack([auc.compute() for auc in aucs])
     accuracies = []
     full_binary = []
-    for i in range(5):
+    for i in range(num_classes):
         preds_binary = (np.array(all_preds[i]) > 0.5).astype(int)  # Apply threshold for binary classification
         acc = accuracy_score(all_labels[i], preds_binary)
         accuracies.append(acc)

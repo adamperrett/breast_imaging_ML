@@ -221,6 +221,7 @@ def regression_training(trial):
                             inverse_standardize_targets, mean, std,
                             num_manufacturers=num_manufacturers,
                             manufacturer_mapping=manufacturer_mapping,
+                            recurrence_mapping = recurrence_mapping,
                             split_CC_and_MLO=split_CC_and_MLO,
                             r2_weighting_offset=r2_weighting_offset
                             )
@@ -230,6 +231,7 @@ def regression_training(trial):
                             inverse_standardize_targets, mean, std,
                             num_manufacturers=num_manufacturers,
                             manufacturer_mapping=manufacturer_mapping,
+                            recurrence_mapping = recurrence_mapping,
                             split_CC_and_MLO=split_CC_and_MLO,
                             r2_weighting_offset=r2_weighting_offset
                             )
@@ -379,6 +381,7 @@ def regression_training(trial):
                         inverse_standardize_targets, mean, std,
                         num_manufacturers=num_manufacturers,
                         manufacturer_mapping=manufacturer_mapping,
+                            recurrence_mapping = recurrence_mapping,
                         split_CC_and_MLO=split_CC_and_MLO,
                         r2_weighting_offset=r2_weighting_offset
                         )
@@ -389,6 +392,7 @@ def regression_training(trial):
                         mean, std,
                         num_manufacturers=num_manufacturers,
                         manufacturer_mapping=manufacturer_mapping,
+                            recurrence_mapping = recurrence_mapping,
                         split_CC_and_MLO=split_CC_and_MLO,
                         r2_weighting_offset=r2_weighting_offset
                         )
@@ -399,6 +403,7 @@ def regression_training(trial):
                         mean, std,
                         num_manufacturers=num_manufacturers,
                         manufacturer_mapping=manufacturer_mapping,
+                            recurrence_mapping = recurrence_mapping,
                         split_CC_and_MLO=split_CC_and_MLO,
                         r2_weighting_offset=r2_weighting_offset
                         )
