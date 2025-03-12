@@ -53,7 +53,7 @@ def evaluate_recurrence(model, dataloader, criterion, inverse_standardize_target
             for i, auc in enumerate(aucs):
                 auc.update(outputs[:, i], recurrence_data[i])
 
-            for i in range(5):
+            for i in range(num_classes):
                 all_preds[i].extend(outputs[:, i].cpu().numpy())
                 all_labels[i].extend(recurrence_data[i].cpu().numpy())
 

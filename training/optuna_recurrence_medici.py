@@ -109,6 +109,7 @@ def regression_training(trial):
     #edit cuda
     print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
     model = Recurrence_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
+                                 num_classes=num_classes,
                              split=split_CC_and_MLO, num_manufacturers=num_manufacturers, include_vas=include_vas).to('cuda')
     epsilon = 0.
     # model = TransformerModel(epsilon=epsilon).to(device)

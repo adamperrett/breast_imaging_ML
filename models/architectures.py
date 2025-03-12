@@ -38,7 +38,7 @@ class MILPooling(nn.Module):
 
 class Recurrence_MIL_Model(nn.Module):
     def __init__(self, pretrain, replicate, resnet_size, pooling_type='attention', dropout=0.5, split=True,
-                 num_manufacturers=6, include_vas=True):
+                 num_manufacturers=6, num_classes=4, include_vas=True):
         super(Recurrence_MIL_Model, self).__init__()
 
         self.replicate = replicate
@@ -68,7 +68,7 @@ class Recurrence_MIL_Model(nn.Module):
             nn.Dropout(p=dropout),
             nn.ReLU(),
         )
-        self.output = nn.Linear(self.L, 5)  # 5 binary classifications squished together
+        self.output = nn.Linear(self.L, num_classes)  # 5 binary classifications squished together
 
     ## Feed forward function
     def forward(self, image_data, manufacturer_mapping):
