@@ -63,10 +63,11 @@ def regression_training(trial):
     transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
     weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
     weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
+    weight_criterion = trial.suggest_categorical('weight_criterion', [0, 1, 2, 3])
     data_path = processed_dataset_file
-    best_model_name = '{}_lr{}x{}_{}{}_v{}p{}r{}_d{}_{}_t{}_wl{}_ws{}'.format(
+    best_model_name = '{}_lr{}x{}_{}{}_v{}p{}r{}_d{}_{}_t{}_wc{}_wl{}_ws{}'.format(
         base_name, round_to_(lr), batch_size, resnet_size, pooling_type, include_vas, pre_trained,
-        replicate, round_to_(dropout), op_choice, transformed, weight_loss, weight_samples)
+        replicate, round_to_(dropout), op_choice, transformed, weight_criterion, weight_loss, weight_samples)
 
     print("Accessing data from", data_path, "\nConfig", best_model_name)
     print(time.localtime())
@@ -113,7 +114,18 @@ def regression_training(trial):
                              split=split_CC_and_MLO, num_manufacturers=num_manufacturers, include_vas=include_vas).to('cuda')
     epsilon = 0.
     # model = TransformerModel(epsilon=epsilon).to(device)
-    criterion = nn.BCEWithLogitsLoss(reduction='none')  # BCE for classification
+    # criterion = nn.BCEWithLogitsLoss(reduction='none')  # BCE for classification
+    if weight_criterion == 0:
+        weight = 0.97
+        criterion = nn.CrossEntropyLoss(weight=torch.tensor([weight, 1-weight]), reduction='none')
+    elif weight_criterion == 1:
+        weight = 0.97
+        criterion = nn.CrossEntropyLoss(weight=torch.tensor([1-weight, weight]), reduction='none')
+    elif weight_criterion == 2:
+        weight = 0.5
+        criterion = nn.CrossEntropyLoss(weight=torch.tensor([1-weight, weight]), reduction='none')
+    else:
+        criterion = nn.CrossEntropyLoss(reduction='none')
     if op_choice == 'd_adam':
         optimizer = DAdaptAdam(model.parameters())
     elif op_choice == 'd_sgd':
