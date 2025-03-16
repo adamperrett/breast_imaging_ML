@@ -181,7 +181,7 @@ def regression_training(trial):
             # losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
             split_losses = []
             for i, t in enumerate(recurrence_data):
-                loss = criterion(t.to(torch.float32), outputs[:, i])
+                loss = criterion(outputs[:, [2*i, 2*i+1]], torch.vstack([1-t.to(torch.float32), t.to(torch.float32)]).T)
                 split_losses.append(loss)
             # print("Before weighting\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             # weighted_loss = (losses * weights).mean()  # Weighted loss

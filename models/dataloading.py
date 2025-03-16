@@ -14,7 +14,7 @@ from data_processing.data_analysis import *
 import time
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
-gpu = False
+gpu = True
 if gpu:
     torch.set_default_tensor_type(torch.cuda.FloatTensor)
     device = 'cuda'

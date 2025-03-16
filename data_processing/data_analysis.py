@@ -42,7 +42,7 @@ def evaluate_recurrence(model, dataloader, criterion, inverse_standardize_target
             # running_loss += loss.item() * inputs.size(0)
             split_losses = []
             for i, t in enumerate(recurrence_data):
-                loss = criterion(t.to(torch.float32), outputs[:, i])
+                loss = criterion(outputs[:, [2*i, 2*i+1]], torch.vstack([1-t.to(torch.float32), t.to(torch.float32)]).T)
                 split_losses.append(loss)
 
             total_loss = torch.sum(torch.stack(split_losses), dim=1).to('cpu')

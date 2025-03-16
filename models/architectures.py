@@ -68,7 +68,7 @@ class Recurrence_MIL_Model(nn.Module):
             nn.Dropout(p=dropout),
             nn.ReLU(),
         )
-        self.output = nn.Linear(self.L, num_classes)  # 5 binary classifications squished together
+        self.output = nn.Linear(self.L, num_classes*2)  # n binary classifications squished together
 
     ## Feed forward function
     def forward(self, image_data, manufacturer_mapping):
