@@ -50,7 +50,7 @@ def round_to_(x, sig_fig=2):
 
 def regression_training(trial):
     global base_name
-    lr = trial.suggest_float('lr', 3e-6, 1e-3, log=True)
+    lr = trial.suggest_float('lr', 3e-5, 1e-2, log=True)
     op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
     batch_size = trial.suggest_int('batch_size', 2, 17)
     dropout = trial.suggest_float('dropout', 0, 0.7)
@@ -61,13 +61,15 @@ def regression_training(trial):
     include_vas = trial.suggest_categorical('include_vas', [0, 1])
     replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
     transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
-    weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1])
+    weight_samples = trial.suggest_categorical('weight_samples', [0, 1, 2, 3])
     weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
-    weight_criterion = trial.suggest_categorical('weight_criterion', [0, 1, 2, 3])
+    weight_criterion = 4#trial.suggest_categorical('weight_criterion', [0, 1, 2, 3])
+    alpha = trial.suggest_float('alpha', 0, 1.)
+    gamma = trial.suggest_float('gamma', 0, 5.)
     data_path = processed_dataset_file
-    best_model_name = '{}_lr{}x{}_{}{}_v{}p{}r{}_d{}_{}_t{}_wc{}_wl{}_ws{}'.format(
+    best_model_name = '{}_lr{}x{}_{}{}_v{}p{}r{}_d{}_{}_t{}_a{}y{}_wc{}_ws{}'.format(
         base_name, round_to_(lr), batch_size, resnet_size, pooling_type, include_vas, pre_trained,
-        replicate, round_to_(dropout), op_choice, transformed, weight_criterion, weight_loss, weight_samples)
+        replicate, round_to_(dropout), op_choice, transformed, alpha, gamma, weight_criterion, weight_samples)
 
     print("Accessing data from", data_path, "\nConfig", best_model_name)
     print(time.localtime())
@@ -124,6 +126,8 @@ def regression_training(trial):
     elif weight_criterion == 2:
         weight = 0.5
         criterion = nn.CrossEntropyLoss(weight=torch.tensor([1-weight, weight]), reduction='none')
+    elif weight_criterion == 4:
+        criterion = FocalLoss(alpha=alpha, gamma=gamma, reduction='none')
     else:
         criterion = nn.CrossEntropyLoss(reduction='none')
     if op_choice == 'd_adam':

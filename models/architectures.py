@@ -7,6 +7,39 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import torchvision.models as torch_models
 
 
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=1, gamma=2, reduction='mean'):
+        """
+        Args:
+            alpha (float, tensor): Weighting factor for the class imbalance
+            gamma (float): Focusing parameter
+            reduction (str): Specifies the reduction to apply to the output: 'none' | 'mean' | 'sum'
+        """
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        """
+        Args:
+            inputs: Predicted logits (before softmax) of shape (N, C) where C is the number of classes
+            targets: Ground-truth labels of shape (N,)
+
+        Returns:
+            Computed focal loss value
+        """
+        BCE_loss = torch.nn.functional.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-BCE_loss)  # Compute probability of correct class
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
+
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss  # No reduction
+
 class MILPooling(nn.Module):
     def __init__(self, feature_dim, pooling_type='mean'):
         super(MILPooling, self).__init__()

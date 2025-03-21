@@ -879,7 +879,7 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
 
     print("Processing data for the first time", time.localtime())
     # Splitting the dataset
-    train_ratio, val_ratio, test_ratio = 0.7, 0.15, 0.15
+    train_ratio, val_ratio, test_ratio = 0.5, 0.25, 0.25
     train_data, val_data, test_data = split_by_patient_and_stratefy_by_manufacturer(
         full_processed_data_address,
         train_ratio, val_ratio, test_ratio, seed_value)
@@ -892,12 +892,20 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
          if 1 in train_data[patient] and not train_data[patient][1]['failed']],
         [train_data[patient][3]['score'] for patient in train_data
          if 3 in train_data[patient] and not train_data[patient][3]['failed']]])
-    computed_weights = targets  # compute_sample_weights(targets)
+    classes = np.hstack(
+        [train_data[patient]['recurrence']['breastrec'] for patient in train_data
+         if 0 in train_data[patient] and not train_data[patient][0]['failed']])
+    computed_weights = np.abs(classes - 0.03)  # compute_sample_weights(targets)
 
     mean, std = compute_target_statistics(targets)
 
     if weighted_sampling:
-        sample_weights = computed_weights
+        if weighted_sampling == 1:
+            sample_weights = computed_weights
+        elif weighted_sampling == 2:
+            sample_weights = 1 - computed_weights
+        else:
+            sample_weights = (computed_weights * 0) + 0.5
     else:
         sample_weights = None
 
