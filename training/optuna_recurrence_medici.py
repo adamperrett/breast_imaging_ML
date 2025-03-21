@@ -69,7 +69,7 @@ def regression_training(trial):
     data_path = processed_dataset_file
     best_model_name = '{}_lr{}x{}_{}{}_v{}p{}r{}_d{}_{}_t{}_a{}y{}_wc{}_ws{}'.format(
         base_name, round_to_(lr), batch_size, resnet_size, pooling_type, include_vas, pre_trained,
-        replicate, round_to_(dropout), op_choice, transformed, alpha, gamma, weight_criterion, weight_samples)
+        replicate, round_to_(dropout), op_choice, transformed, round_to_(alpha), round_to_(gamma), weight_criterion, weight_samples)
 
     print("Accessing data from", data_path, "\nConfig", best_model_name)
     print(time.localtime())
