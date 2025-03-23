@@ -63,11 +63,14 @@ class RecurrenceLoader(Dataset):
                     ])
             if not failed:
                 self.dataset.append(patient_data)
+        print("\nds {} w {}\n".format(len(dataset), len(weights)))
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, idx):
+        if idx >= len(self.dataset):
+            print(f"\nBad idx: {idx}, dataset length: {len(self.dataset)}\n")
         patient = self.dataset[idx]
         recurrence_data = list(patient[0].values())
         image_data = patient[1:]
