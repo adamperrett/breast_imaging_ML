@@ -63,7 +63,7 @@ class RecurrenceLoader(Dataset):
                     ])
             if not failed:
                 self.dataset.append(patient_data)
-        print("\nds {} w {}\n".format(len(dataset), len(weights)))
+        print("\nds {} w {}\n".format(len(self.dataset), len(weights)))
 
     def __len__(self):
         return len(self.dataset)
