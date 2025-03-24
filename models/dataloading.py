@@ -899,7 +899,7 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
          if 0 in train_data[patient] and not train_data[patient][0]['failed']])
     classes_013 = np.hstack(
         [train_data[patient]['recurrence']['breastrec'] for patient in train_data
-         if 0 in train_data[patient] and not train_data[patient][0]['failed'] 
+         if 0 in train_data[patient] and not train_data[patient][0]['failed']
          and 1 in train_data[patient] and not train_data[patient][1]['failed']
          and 3 in train_data[patient] and not train_data[patient][3]['failed']])
     classes = np.hstack(
@@ -942,7 +942,7 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
             train_loader = DataLoader(train_dataset,
                                       batch_size=batch_size,
                                       sampler=WeightedRandomSampler(weights=sample_weights,
-                                                                    num_samples=len(train_dataset),
+                                                                    num_samples=len(sample_weights),
                                                                     replacement=True),
                                       collate_fn=custom_collate,
                                       generator=torch.Generator(device=device), drop_last=True)
@@ -958,7 +958,7 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
             train_loader = DataLoader(train_dataset,
                                       batch_size=batch_size,
                                       sampler=WeightedRandomSampler(weights=sample_weights,
-                                                                    num_samples=len(train_dataset),
+                                                                    num_samples=len(sample_weights),
                                                                     replacement=True),
                                       generator=torch.Generator(device=device), drop_last=True)
         else:
