@@ -897,9 +897,14 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
     classes_0 = np.hstack(
         [train_data[patient]['recurrence']['breastrec'] for patient in train_data
          if 0 in train_data[patient] and not train_data[patient][0]['failed']])
+    classes_013 = np.hstack(
+        [train_data[patient]['recurrence']['breastrec'] for patient in train_data
+         if 0 in train_data[patient] and not train_data[patient][0]['failed'] 
+         and 1 in train_data[patient] and not train_data[patient][1]['failed']
+         and 3 in train_data[patient] and not train_data[patient][3]['failed']])
     classes = np.hstack(
         [train_data[patient]['recurrence']['breastrec'] for patient in train_data])
-    computed_weights = np.abs(classes - 0.03)  # compute_sample_weights(targets)
+    computed_weights = np.abs(classes_013 - 0.03)  # compute_sample_weights(targets)
 
     mean, std = compute_target_statistics(targets)
 
@@ -910,7 +915,8 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
             sample_weights = 1 - computed_weights
         else:
             sample_weights = (computed_weights * 0) + 0.5
-        print("\n\n sw {} td {} c {} c0 {}\n\n".format(len(sample_weights), len(train_data), len(classes), len(classes_0)))
+        print("\n\n sw {} td {} c {} c0 {} c013 {}\n\n".format(len(sample_weights), len(train_data), len(classes),
+                                                               len(classes_0), len(classes_013)))
     else:
         sample_weights = None
 
