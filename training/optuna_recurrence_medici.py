@@ -61,7 +61,7 @@ def regression_training(trial):
     include_vas = trial.suggest_categorical('include_vas', [0, 1])
     replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
     transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
-    weight_samples = trial.suggest_categorical('weight_samples', [1, 2, 3])
+    weight_samples = trial.suggest_categorical('weight_samples', [0, 1, 2, 3])
     weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
     weight_criterion = 4#trial.suggest_categorical('weight_criterion', [0, 1, 2, 3])
     alpha = trial.suggest_float('alpha', 0, 1.)
@@ -322,7 +322,7 @@ def regression_training(trial):
             dealing_with_my_bad_coding = torch.mean(best_val_auc)
         else:
             dealing_with_my_bad_coding = best_val_auc
-        if torch.mean(val_auc) > dealing_with_my_bad_coding:
+        if torch.mean(val_auc) > dealing_with_my_bad_coding or epoch == 0:
             best_val_a_loss = torch.mean(val_loss)
             best_test_a_loss = torch.mean(test_loss)
             best_val_auc = val_auc
@@ -332,7 +332,7 @@ def regression_training(trial):
             torch.save(model.state_dict(), working_dir + '/../models/a_' + best_model_name)
         else:
             not_improved_auc += 1
-        if torch.mean(val_loss) < best_val_loss:
+        if torch.mean(val_loss) < best_val_loss or epoch == 0:
             best_val_loss = torch.mean(val_loss)
             best_test_loss = torch.mean(test_loss)
             best_val_l_auc = val_auc
