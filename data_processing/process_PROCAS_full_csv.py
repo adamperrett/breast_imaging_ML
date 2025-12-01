@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+import re
 import datetime as dt
 from scipy import stats
 import matplotlib
@@ -17,7 +18,7 @@ save_name = 'processed_PROCAS_full_data_16-03-2024.csv'
 
 csv_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 
-csv_processed_previously = True
+csv_processed_previously = False
 
 def date_to_number(d):
     # expected format "23/06/2025"
@@ -36,6 +37,50 @@ def number_to_date(n):
         return d.strftime("%d/%m/%Y")
     except Exception:
         return ""
+
+float_pattern = re.compile(r"-?\d+(?:\.\d+)?")
+
+def parse_numeric_max(value, data_type):
+    """
+    Extracts all integers in a messy string and returns the max.
+    Examples:
+        '8/7' → 8
+        'IDC 0 & ILC 4' → 4
+        '8 (IDC) 5 (DCIS)' → 8
+        None or '' → None
+    """
+    if value is None:
+        return None
+
+    # Ensure string
+    s = str(value).strip()
+
+    if s == "":
+        return None
+
+    # Extract ints/floats, e.g. "3", "-2", "4.5", "-0.75"
+    nums = float_pattern.findall(s)
+    if not nums:
+        return None
+
+    # Convert to integers and take max
+    nums = [float(n) for n in nums]
+    return data_type(np.max(nums))
+
+def apply_map(value, col):
+    v = "" if value is None else str(value).strip()
+
+    # Case-insensitive direct match
+    for k, out in string_mapping[col].items():
+        if k.lower() == v.lower():
+            return out
+
+    # Fallback if "else" is defined
+    if "else" in string_mapping[col]:
+        return string_mapping[col]["else"]
+
+    # Otherwise keep original
+    return value
 
 def address_to_gps(address):
     # split by comma
@@ -136,7 +181,7 @@ string_mapping = {
     'cancer death': {
         'no': 'No',     # n=89
         'yes': 'Yes',   # n=84
-        'else': date_to_number,   # n=515 (or should this just be Yes?) todo fix this
+        'else': 'Yes',  # n=515 (it's dates, but should this just be Yes?) todo fix this
         '': 'Blank'     # n=57215
     },
     'alcohol death': {
@@ -156,7 +201,9 @@ string_mapping = {
     },
     'ConsentedToDNA': {
         'No': 'No',     # n=47883
+        'no': 'No',     # n=47883
         'Yes': 'Yes',   # n=10019
+        'yes': 'Yes',   # n=10019
         '': 'Blank'     # n=1
     },
     'DiagnosisOfCancer': {
@@ -178,6 +225,7 @@ string_mapping = {
         'No': 'No',     # n=42022
         'Yes': 'Yes',   # n=5
         'Both': 'Both', # n=4977
+        'both': 'Both', # n=4977
         'One': 'One',   # n=2029
         'DNK': 'DNK',   # n=8868
         '': 'DNK'       # n=2
@@ -193,6 +241,7 @@ string_mapping = {
     },
     'AnyChildrenYN': {
         'No': 'No',     # n=7384
+        'no': 'No',     # n=7384
         'Yes': 'Yes',   # n=50411
         'DNK': 'DNK',   # n=107
         '': 'DNK'       # n=1
@@ -212,6 +261,7 @@ string_mapping = {
         'C56.X - Malignant neoplasm of ovary and endometrium': 'Both',  # n=1
         'EC': 'EC',                                                     # n=6
         'Endometrial': 'EC',                                            # n=27
+        'endometrial': 'EC',                                            # n=27
         'Ovarian': 'OC',                                                # n=5
         'ovarian cancer': 'OC',                                         # n=1
         '': 'Blank'                                                     # n=57752
@@ -286,6 +336,7 @@ string_mapping = {
     'AlcoholYN': {
         'DNK': 'DNK',   # n=850
         'No': 'No',     # n=15817
+        'no': 'No',     # n=15817
         'Yes': 'Yes',   # n=41233
         'yes': 'Yes',   # n=41233
         '': 'Blank',    # n=3
@@ -294,9 +345,12 @@ string_mapping = {
         'Data not known': 'DNK',            # n=3071
         'Datanot known': 'DNK',             # n=4
         'Not applicable': 'n/a',            # n=1
-        'perimenopausal': 'perimenopausal', # n=10720
-        'postmenopausal': 'postmenopausal', # n=37233
-        'premenopausal': 'premenopausal',   # n=6873
+        'perimenopausal': 'Perimenopausal', # n=10720
+        'Perimenopausal': 'Perimenopausal', # n=10720
+        'postmenopausal': 'Postmenopausal', # n=37233
+        'Postmenopausal': 'Postmenopausal', # n=37233
+        'premenopausal': 'Premenopausal',   # n=6873
+        'Premenopausal': 'Premenopausal',   # n=6873
         '': 'Blank',                        # n=1
     },
     'postmen': {
@@ -307,12 +361,15 @@ string_mapping = {
     'HRT': {
         'DNK': 'DNK',   # n=540
         'No': 'No',     # n=36508
+        'no': 'No',     # n=36508
         'Yes': 'Yes',   # n=20854
         '': 'Blank',    # n=1
     },
     'HRT2': {
         'DNK': 'DNK',   # n=540
         'No': 'No',     # n=36508
+        'no': 'No',     # n=36508
+        'no': 'No',     # n=36508
         'Yes': 'Yes',   # n=20854
         '': 'Blank',    # n=1
     },
@@ -320,7 +377,7 @@ string_mapping = {
         'unknown': 'DNK',   # n=12286
         'No': 'No',         # n=4008
         'yes': 'Yes',       # n=4567
-        'else': 'No',       # n=37041 (a bunch of random patient IDs)
+        'else': 'No',       # n=37041 (a bunch of random patient IDs) todo fix this
         '': 'Blank',        # n=1
     },
     'HRTType': {
@@ -347,7 +404,11 @@ string_mapping = {
     },
     'EthnicOrigin': {
         'Asian or Asian British': 'Asian or Asian British', # n=891
+        'Asian or asian British': 'Asian or Asian British', # n=891
+        'Asian or asian british': 'Asian or Asian British', # n=891
         'Black or Black British': 'Black or Black British', # n=671
+        'Black or black British': 'Black or Black British', # n=671
+        'Black or black british': 'Black or Black British', # n=671
         'Data not known': 'DNK',                            # n=1867
         'Jewish': 'Jewish',                                 # n=520
         'Mixed': 'Mixed',                                   # n=290
@@ -365,7 +426,9 @@ string_mapping = {
         ' ': 'Blank',   # n=6
         'DNK': 'DNK',   # n=22306
         'No': 'No',     # n=27448
+        'no': 'No',     # n=27448
         'Yes': 'Yes',   # n=8142
+        'yes': 'Yes',   # n=8142
         '': 'Blank',    # n=1
     },
     'premature death': {
@@ -378,9 +441,9 @@ string_mapping = {
         '': 'Blank',    # n=1
     },
     'detection': {
-        'incident': 'incident',     # n=547
-        'interval': 'interval',     # n=630
-        'prevalent': 'prevalent',   # n=458
+        'incident': 'Incident',     # n=547
+        'interval': 'Interval',     # n=630
+        'prevalent': 'Prevalent',   # n=458
         '': 'Blank',                # n=56268
     },
     'presumed postmen BC': {
@@ -390,10 +453,12 @@ string_mapping = {
     },
     'Invasive or CIS or both': {
         'Both': 'Both',                                                                             # n=1143
+        'both': 'Both',                                                                             # n=1143
         'Both?': 'Both',                                                                            # n=1
         'CIS': 'CIS',                                                                               # n=347
         'Definate cancer confirmed by MR 21/01/15. Op 15/01/15 awaiting pathology report.': 'DNK',  # n=1
         'Invasive': 'Invasive',                                                                     # n=517
+        'invasive': 'Invasive',                                                                     # n=517
         'Invasive ': 'Invasive',                                                                    # n=1
         '': 'Blank',                                                                                # n=55893
     },
@@ -414,9 +479,10 @@ string_mapping = {
         'Invasive fibromatosis-like metaplastic carcinoma ': 'IMC',     # n=1
         'Invasive Lobular Carcinoma': 'ILC',                            # n=1
         'Invasive Lobular Carcinoma with DCIS and LCIS': 'ILC',         # n=1
-        'Invasive Lobular Carcinoma with LCIS': 'ILC',                  # n=1
+        'Invasive Lobular Carcinoma with LCIS': 'ILC with LCIS',        # n=1
         'Invasive metaplastic carcinoma with DCIS': 'IMC',              # n=1
-        'Invasive mucinous carcinom': 'IMC',                            # n=2
+        'Invasive mucinous carcinoma': 'IMC',                           # n=2
+        'Invasive Mucinous Carcinoma': 'IMC',                           # n=2
         'Invasive Mucinous Carcinoma with DCIS': 'IMC',                 # n=2
         'Invasive Tubular Carcinoma': 'ITC',                            # n=1
         'Invasive tubular carcinoma with DCIS': 'ITC',                  # n=1
@@ -427,8 +493,11 @@ string_mapping = {
     },
     'LN': {
         '1': '1',                           # n=3
+        '1.0': '1',                           # n=3
         '2': '2',                           # n=11
+        '2.0': '2',                           # n=11
         '3': '3',                           # n=16
+        '3.0': '3',                           # n=16
         '2 (provisional)': '2',             # n=2
         '3 (provisional)': '3',             # n=2
         'High': '3',                        # n=3
@@ -440,8 +509,11 @@ string_mapping = {
     },
     'ER status': {
         'Negative': 'Negative',                                             # n=238
+        'NEGATIVE': 'Negative',                                             # n=238
         'Negative - 0': 'Negative',                                         # n=8
+        'positive': 'Positive',                                             # n=1706
         'Positive': 'Positive',                                             # n=1706
+        'POSITIVE': 'Positive',                                             # n=1706
         'Positive ': 'Positive',                                            # n=3
         'Positive                                   Positive': 'Positive',  # n=1
         'Positive - 2': 'Positive',                                         # n=2
@@ -470,10 +542,14 @@ string_mapping = {
     'PR status': {
         'IDC Negative & ILC Positive ': 'Positive',                         # n=1
         'Negative': 'Negative',                                             # n=446
+        'negative': 'Negative',                                             # n=446
+        'NEGATIVE': 'Negative',                                             # n=446
         'Negative - 0': 'Negative',                                         # n=14
         'Positive': 'Positive',                                             # n=1494
+        'positive': 'Positive',                                             # n=1494
+        'POSITIVE': 'Positive',                                             # n=1494
         'Positive ': 'Positive',                                            # n=7
-        'Positive                                   Positive': 'Positive',  # n=1
+        'Positive                                                            Positive': 'Positive',  # n=1
         'Positive - 2': 'Positive',                                         # n=2
         'Positive - 3': 'Positive',                                         # n=1
         'Positive - 4': 'Positive',                                         # n=3
@@ -500,12 +576,17 @@ string_mapping = {
         'Nagative': 'Negative',                                                                 # n=1
         'Negative - 0': 'Negative',                                                             # n=1453
         'Negative': 'Negative',                                                                 # n=13
+        'Negative ': 'Negative',                                                                # n=13
+        'negative': 'Negative',                                                                 # n=13
+        'NEGATIVE': 'Negative',                                                                 # n=13
         'Negative - 1+': 'Negative',                                                            # n=6
         'Negative - 2+ non amplified': 'Negative',                                              # n=15
         'Negative; Negative': 'Negative',                                                       # n=7
         'Not performed': 'Not performed',                                                       # n=38
         'Not reported': 'Not reported',                                                         # n=177
         'Positive': 'Positive',                                                                 # n=1
+        'positive': 'Positive',                                                                 # n=1
+        'POSITIVE': 'Positive',                                                                 # n=1
         'Positive ': 'Positive',                                                                # n=6
         'Positive - 3+': 'Positive',                                                            # n=1
         'Positive & Negative': 'Positive',                                                      # n=1
@@ -541,7 +622,9 @@ string_mapping = {
     },
     'PreviousCancerDiagnosis': {
         'No': 'No',     # n=56998
+        'no': 'No',     # n=56998
         'Yes': 'Yes',   # n=905
+        'yes': 'Yes',   # n=905
     },
     'Volpara done': {
         'yes': 'Yes',   # n=44965
@@ -711,9 +794,15 @@ if not csv_processed_previously:
         if col in function_mapping:
             proCeSsVed[col] = csv_data[col].apply(function_mapping[col])
         elif col in string_mapping:
-            proCeSsVed[col] = csv_data[col].fillna("").map(string_mapping[col]).fillna(csv_data[col])
+            # proCeSsVed[col] = csv_data[col].fillna("").map(string_mapping[col]).fillna(csv_data[col])
+            # proCeSsVed[col] = csv_data[col].apply(apply_map)
+            proCeSsVed[col] = csv_data[col].apply(
+                lambda v: apply_map(v, col)
+            )
         elif col in numerical_columns:
-            proCeSsVed[col] = csv_data[col]
+            proCeSsVed[col] = csv_data[col].apply(
+                lambda v: parse_numeric_max(v, numerical_columns[col])
+            )
         else:
             print(f"\n\t Col:{col} does not exist in mapping\n")
             proCeSsVed[col] = csv_data[col]
@@ -737,21 +826,40 @@ if not csv_processed_previously:
 
     proCeSsVed['ER_PR_HER2'] = proCeSsVed.apply(
         lambda r:
-        "E+P+H+" if r["HER2 status"] == "Positive" and r["ER status"] == "Positive" and r["PR status"] == "Positive" else
-        "E+P+H-" if r["HER2 status"] == "Positive" and r["ER status"] == "Positive" and r["PR status"] == "Negative" else
-        "E+P-H+" if r["HER2 status"] == "Positive" and r["ER status"] == "Negative" and r["PR status"] == "Positive" else
-        "E+P-H-" if r["HER2 status"] == "Positive" and r["ER status"] == "Negative" and r["PR status"] == "Negative" else
-        "E-P+H+" if r["HER2 status"] == "Negative" and r["ER status"] == "Positive" and r["PR status"] == "Positive" else
-        "E-P+H-" if r["HER2 status"] == "Negative" and r["ER status"] == "Positive" and r["PR status"] == "Negative" else
-        "E-P-H+" if r["HER2 status"] == "Negative" and r["ER status"] == "Negative" and r["PR status"] == "Positive" else
-        "E-P-H-" if r["HER2 status"] == "Negative" and r["ER status"] == "Negative" and r["PR status"] == "Negative" else
+        "E+ P+ H+" if r["HER2 status"] == "Positive" and r["ER status"] == "Positive" and r["PR status"] == "Positive" else
+        "E+ P+ H-" if r["HER2 status"] == "Positive" and r["ER status"] == "Positive" and r["PR status"] == "Negative" else
+        "E+ P- H+" if r["HER2 status"] == "Positive" and r["ER status"] == "Negative" and r["PR status"] == "Positive" else
+        "E+ P- H-" if r["HER2 status"] == "Positive" and r["ER status"] == "Negative" and r["PR status"] == "Negative" else
+        "E- P+ H+" if r["HER2 status"] == "Negative" and r["ER status"] == "Positive" and r["PR status"] == "Positive" else
+        "E- P+ H-" if r["HER2 status"] == "Negative" and r["ER status"] == "Positive" and r["PR status"] == "Negative" else
+        "E- P- H+" if r["HER2 status"] == "Negative" and r["ER status"] == "Negative" and r["PR status"] == "Positive" else
+        "E- P- H-" if r["HER2 status"] == "Negative" and r["ER status"] == "Negative" and r["PR status"] == "Negative" else
         "Blank",
         axis=1
     )
 
-    # space to add VAS readings from MAI-VAS and MADAM
-
+    # lobular - ER+ (95%) Her2-(majority)
+    # ductal - not lobular?
+    proCeSsVed['Lobular or Ductal'] = proCeSsVed.apply(
+        lambda r:
+        "Lobular (ER+ HER2-)" if r["HER2 status"] == "Positive" and r["ER status"] == "Positive" and r["PR status"] == "Negative" else
+        "Lobular (ER+ HER2-)" if r["HER2 status"] == "Positive" and r["ER status"] == "Negative" and r["PR status"] == "Negative" else
+        "Ductal (any other)" if r["HER2 status"] == "Positive" and r["ER status"] == "Positive" and r["PR status"] == "Positive" else
+        "Ductal (any other)" if r["HER2 status"] == "Positive" and r["ER status"] == "Negative" and r["PR status"] == "Positive" else
+        "Ductal (any other)" if r["HER2 status"] == "Negative" and r["ER status"] == "Positive" and r["PR status"] == "Positive" else
+        "Ductal (any other)" if r["HER2 status"] == "Negative" and r["ER status"] == "Positive" and r["PR status"] == "Negative" else
+        "Ductal (any other)" if r["HER2 status"] == "Negative" and r["ER status"] == "Negative" and r["PR status"] == "Positive" else
+        "Ductal (any other)" if r["HER2 status"] == "Negative" and r["ER status"] == "Negative" and r["PR status"] == "Negative" else
+        "Blank",
+        axis=1
+    )
+    # todo
+    # **space to add VAS readings from MAI-VAS and MADAM
     # space to add other csvs which contain things like Ki-67
+    # click a patient
+    # ***One column plot at once
+    # socioeconomic score (from postcode (etc?))
+
 
     # Save to new CSV
     proCeSsVed.to_csv(os.path.join(save_dir, save_name), index=False)
@@ -828,11 +936,15 @@ class DataExplorer(tk.Tk):
         self.geometry("1100x700")
 
         cols = list(df.columns)
+        self.all_cols = cols
+
+        default_x_column = "EthnicOrigin"  # "DOB"
+        default_y_column = "Subtype"  # "FGV cm3"  #
 
         # Choose sensible defaults
-        default_x = "DOB" if "DOB" in cols else cols[0]
-        if "Subtype" in cols and "Subtype" != default_x:
-            default_y = "Subtype"
+        default_x = default_x_column if default_x_column in cols else cols[0]
+        if default_y_column in cols and default_y_column != default_x:
+            default_y = default_y_column
         else:
             default_y = cols[1] if len(cols) > 1 else cols[0]
 
@@ -840,19 +952,42 @@ class DataExplorer(tk.Tk):
         ctrl = ttk.Frame(self, padding=10)
         ctrl.pack(side="top", fill="x")
 
-        ttk.Label(ctrl, text="X column:").pack(side="left", padx=(0, 5))
+        x_frame = ttk.Frame(ctrl)
+        x_frame.pack(side="left", padx=(0, 20))
+
+        ttk.Label(x_frame, text="X column:").pack(side="top", anchor="w")
+
+        self.x_search = tk.StringVar()
+        x_search_entry = ttk.Entry(x_frame, textvariable=self.x_search, width=25)
+        x_search_entry.pack(side="top", fill="x")
+        self.x_search.trace_add("write", lambda *args: self.filter_columns("x"))
+
         self.x_var = tk.StringVar(value=default_x)
         self.x_box = ttk.Combobox(
-            ctrl, textvariable=self.x_var, values=cols, state="readonly", width=30
+            x_frame, textvariable=self.x_var, values=self.all_cols,
+            state="readonly", width=30
         )
-        self.x_box.pack(side="left", padx=(0, 20))
+        self.x_box.pack(side="top", fill="x")
+        # self.x_box.bind("<<ComboboxSelected>>", lambda e: self.update_plot())
 
-        ttk.Label(ctrl, text="Y column:").pack(side="left", padx=(0, 5))
+        # --- Y column with search ------------------------------------------------
+        y_frame = ttk.Frame(ctrl)
+        y_frame.pack(side="left", padx=(0, 20))
+
+        ttk.Label(y_frame, text="Y column:").pack(side="top", anchor="w")
+
+        self.y_search = tk.StringVar()
+        y_search_entry = ttk.Entry(y_frame, textvariable=self.y_search, width=25)
+        y_search_entry.pack(side="top", fill="x")
+        self.y_search.trace_add("write", lambda *args: self.filter_columns("y"))
+
         self.y_var = tk.StringVar(value=default_y)
         self.y_box = ttk.Combobox(
-            ctrl, textvariable=self.y_var, values=cols, state="readonly", width=30
+            y_frame, textvariable=self.y_var, values=self.all_cols,
+            state="readonly", width=30
         )
-        self.y_box.pack(side="left", padx=(0, 20))
+        self.y_box.pack(side="top", fill="x")
+        # self.y_box.bind("<<ComboboxSelected>>", lambda e: self.update_plot())
 
         # Swap button
         self.swap_btn = ttk.Button(ctrl, text="Swap X/Y", command=self.swap_axes)
@@ -860,6 +995,90 @@ class DataExplorer(tk.Tk):
 
         self.update_btn = ttk.Button(ctrl, text="Update plot", command=self.update_plot)
         self.update_btn.pack(side="left", padx=(0, 20))
+
+        # --- Outlier filtering controls (per axis) ---------------------------
+        # X outlier controls
+        self.x_use_outlier_filter = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            ctrl,
+            text="Filter X outliers",
+            variable=self.x_use_outlier_filter,
+            command=self.update_plot,
+        ).pack(side="left", padx=(10, 2))
+
+        ttk.Label(ctrl, text="X Min:").pack(side="left")
+        self.x_min_entry = ttk.Entry(ctrl, width=6)
+        self.x_min_entry.pack(side="left")
+
+        ttk.Label(ctrl, text="X Max:").pack(side="left")
+        self.x_max_entry = ttk.Entry(ctrl, width=6)
+        self.x_max_entry.pack(side="left", padx=(0, 10))
+
+        # Y outlier controls
+        self.y_use_outlier_filter = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            ctrl,
+            text="Filter Y outliers",
+            variable=self.y_use_outlier_filter,
+            command=self.update_plot,
+        ).pack(side="left", padx=(10, 2))
+
+        ttk.Label(ctrl, text="Y Min:").pack(side="left")
+        self.y_min_entry = ttk.Entry(ctrl, width=6)
+        self.y_min_entry.pack(side="left")
+
+        ttk.Label(ctrl, text="Y Max:").pack(side="left")
+        self.y_max_entry = ttk.Entry(ctrl, width=6)
+        self.y_max_entry.pack(side="left", padx=(0, 10))
+
+        # --- Blank handling ---------------------------------------------------
+        self.x_exclude_blank = tk.BooleanVar(value=False)
+        self.y_exclude_blank = tk.BooleanVar(value=False)
+
+        # --- CAT×CAT normalisation mode --------------------------------------
+        self.cat_norm_mode = tk.StringVar(value="none")  # 'none', 'row', 'col', 'total'
+
+        norm_frame = ttk.Frame(ctrl)
+        norm_frame.pack(side="left", padx=(10, 2))
+
+        ttk.Label(norm_frame, text="CAT×CAT:").pack(side="left")
+        ttk.Radiobutton(
+            norm_frame, text="Counts",
+            value="none", variable=self.cat_norm_mode,
+            command=self.update_plot,
+        ).pack(side="left")
+
+        ttk.Radiobutton(
+            norm_frame, text="Norm X",
+            value="row", variable=self.cat_norm_mode,
+            command=self.update_plot,
+        ).pack(side="left")
+
+        ttk.Radiobutton(
+            norm_frame, text="Norm Y",
+            value="col", variable=self.cat_norm_mode,
+            command=self.update_plot,
+        ).pack(side="left")
+
+        ttk.Radiobutton(
+            norm_frame, text="Overall",
+            value="total", variable=self.cat_norm_mode,
+            command=self.update_plot,
+        ).pack(side="left")
+
+        ttk.Checkbutton(
+            ctrl,
+            text="Exclude 'Blank' in X",
+            variable=self.x_exclude_blank,
+            command=self.update_plot,
+        ).pack(side="left")
+
+        ttk.Checkbutton(
+            ctrl,
+            text="Exclude 'Blank' in Y",
+            variable=self.y_exclude_blank,
+            command=self.update_plot,
+        ).pack(side="left")
 
         # --- Main layout: plot (left) + stats (right) ------------------------
         main = ttk.Frame(self, padding=10)
@@ -884,26 +1103,77 @@ class DataExplorer(tk.Tk):
         self.stats_text = tk.Text(stats_frame, width=35, height=35)
         self.stats_text.pack(fill="both", expand=True, pady=(5, 0))
 
-        # checkbuttons for excluding "Blank"
-        self.x_exclude_blank = tk.BooleanVar(value=False)
-        self.y_exclude_blank = tk.BooleanVar(value=False)
-
-        ttk.Checkbutton(
-            ctrl,
-            text="Exclude 'Blank' in X",
-            variable=self.x_exclude_blank,
-            command=self.update_plot,
-        ).pack(side="left")
-
-        ttk.Checkbutton(
-            ctrl,
-            text="Exclude 'Blank' in Y",
-            variable=self.y_exclude_blank,
-            command=self.update_plot,
-        ).pack(side="left")
-
         # Initial plot
         self.update_plot()
+
+    def filter_columns(self, which):
+        """Filter X or Y combobox values based on the search text."""
+        if which == "x":
+            pattern = self.x_search.get().lower()
+            combo = self.x_box
+            current = self.x_var.get()
+        else:
+            pattern = self.y_search.get().lower()
+            combo = self.y_box
+            current = self.y_var.get()
+
+        if pattern:
+            filtered = [c for c in self.all_cols if pattern in c.lower()]
+        else:
+            filtered = self.all_cols
+
+        combo["values"] = filtered
+
+        # If current selection is not in filtered list, pick first (if any)
+        if current not in filtered:
+            if filtered:
+                combo.set(filtered[0])
+            else:
+                combo.set("")
+        # Optionally refresh the plot when filtering
+        # self.update_plot()
+
+    def filter_numeric(self, series, coltype, use_filter_var, min_entry, max_entry):
+        """Return a boolean mask for numeric outlier filtering on one axis."""
+        # only filter continuous/ordinal; ignore CAT/DATE/LOC
+        if coltype not in ["CONT", "ORD"]:
+            return pd.Series(True, index=series.index)
+
+        if not use_filter_var.get():
+            return pd.Series(True, index=series.index)
+
+        s = pd.to_numeric(series, errors="coerce")
+        valid = s.dropna()
+        if valid.empty:
+            return pd.Series(True, index=series.index)
+
+        min_text = min_entry.get().strip()
+        max_text = max_entry.get().strip()
+
+        # default: mean ± 3 * std if no manual bounds
+        mean = valid.mean()
+        std = valid.std()
+        if std is None or np.isnan(std):
+            std = 0.0
+
+        if min_text:
+            try:
+                mn = float(min_text)
+            except Exception:
+                mn = valid.min()
+        else:
+            mn = mean - 3 * std
+
+        if max_text:
+            try:
+                mx = float(max_text)
+            except Exception:
+                mx = valid.max()
+        else:
+            mx = mean + 3 * std
+
+        mask = (s >= mn) & (s <= mx)
+        return mask.fillna(False)
 
     def swap_axes(self):
         """Swap selected X and Y columns."""
@@ -917,15 +1187,42 @@ class DataExplorer(tk.Tk):
         x_col = self.x_var.get()
         y_col = self.y_var.get()
 
+        # ✅ Guard: if search left one side blank / invalid, don't try to plot
+        if x_col not in self.df.columns or y_col not in self.df.columns:
+            self.fig.clear()
+            self.ax = self.fig.add_subplot(111)
+            self.ax.text(
+                0.5, 0.5,
+                "Select valid X and Y columns,\nthen press 'Update plot'",
+                ha="center", va="center"
+            )
+            self.ax.set_axis_off()
+            self.canvas.draw()
+            self.stats_text.delete("1.0", tk.END)
+            self.stats_text.insert("1.0", "No valid columns selected.")
+            return
+
         x_full = self.df[x_col]
         y_full = self.df[y_col]
 
         # build a mask for excluding "Blank"
         mask = pd.Series(True, index=self.df.index)
+
+        # Exclude blanks for CAT-type columns
         if self.x_exclude_blank.get():
             mask &= (x_full != "Blank")
         if self.y_exclude_blank.get():
             mask &= (y_full != "Blank")
+
+        # Apply outlier filtering per axis
+        mask &= self.filter_numeric(
+            x_full, get_type(x_col),
+            self.x_use_outlier_filter, self.x_min_entry, self.x_max_entry
+        )
+        mask &= self.filter_numeric(
+            y_full, get_type(y_col),
+            self.y_use_outlier_filter, self.y_min_entry, self.y_max_entry
+        )
 
         x = x_full[mask]
         y = y_full[mask]
@@ -946,40 +1243,108 @@ class DataExplorer(tk.Tk):
         # --- PLOT ------------------------------------------------------------
         # 1) Both numeric-ish (CONT/ORD/DATE)
         if tx in ["CONT", "ORD", "DATE"] and ty in ["CONT", "ORD", "DATE"]:
-            self.ax.scatter(x, y, alpha=0.6)
-            self.ax.set_xlabel(x_col)
-            self.ax.set_ylabel(y_col)
 
-            # DATE formatting: here DATE can be on X and/or Y
+            # remove the single axes and create a 2×2 jointplot-like layout
+            self.fig.clear()
+
+            gs = self.fig.add_gridspec(
+                2, 2,
+                width_ratios=(4, 1),
+                height_ratios=(1, 4),
+                wspace=0.05,
+                hspace=0.05,
+            )
+
+            ax_joint = self.fig.add_subplot(gs[1, 0])  # main plot
+            ax_histx = self.fig.add_subplot(gs[0, 0], sharex=ax_joint)  # x histogram
+            ax_histy = self.fig.add_subplot(gs[1, 1], sharey=ax_joint)  # y histogram
+
+            # --- main joint plot: hexbin ---
+            hb = ax_joint.hexbin(
+                x, y,
+                gridsize=40,
+                cmap="viridis",
+                mincnt=1,
+            )
+            self.cbar = self.fig.colorbar(hb, ax=ax_joint, fraction=0.05, pad=0.02)
+
+            ax_joint.set_xlabel(x_col)
+            ax_joint.set_ylabel(y_col)
+
+            ax_histx.hist(x.dropna(), bins=30, color="gray")
+            ax_histy.hist(y.dropna(), bins=30, orientation="horizontal", color="gray")
+
+            ax_histx.tick_params(axis="x", labelbottom=False)
+            ax_histx.tick_params(axis="y", left=False)
+            ax_histy.tick_params(axis="y", labelleft=False)
+            ax_histy.tick_params(axis="x", bottom=False)
+
+            # DATE formatting (apply to the correct axis)
             if tx == "DATE":
-                xticks = self.ax.get_xticks()
-                self.ax.set_xticks(xticks)
-                self.ax.set_xticklabels(
+                xticks = ax_joint.get_xticks()
+                ax_joint.set_xticks(xticks)
+                ax_joint.set_xticklabels(
                     [
                         number_to_date(int(round(t))) if not np.isnan(t) else ""
                         for t in xticks
                     ],
-                    rotation=45,
-                    ha="right",
+                    rotation=45, ha="right",
                 )
             if ty == "DATE":
-                yticks = self.ax.get_yticks()
-                self.ax.set_yticks(yticks)
-                self.ax.set_yticklabels(
+                yticks = ax_joint.get_yticks()
+                ax_joint.set_yticks(yticks)
+                ax_joint.set_yticklabels(
                     [
                         number_to_date(int(round(t))) if not np.isnan(t) else ""
                         for t in yticks
                     ]
                 )
 
+            self.ax = ax_joint
+
         # 2) CAT (X) vs numeric/DATE (Y): categories on X, numeric on Y
         elif tx == "CAT" and ty in ["CONT", "ORD", "DATE"]:
             df_plot = pd.DataFrame({"cat": x.astype(str), "val": y})
-            df_plot.boxplot(column="val", by="cat", ax=self.ax)
-            self.ax.set_xlabel(x_col)
-            self.ax.set_ylabel(y_col)
-            self.ax.set_title("")
-            self.fig.suptitle("")
+
+            # collect data per category (ignore categories with no numeric values)
+            cats = []
+            data = []
+            counts = []
+
+            for cat, group in df_plot.groupby("cat"):
+                vals = pd.to_numeric(group["val"], errors="coerce").dropna().values
+                if len(vals) == 0:
+                    continue
+                cats.append(cat)
+                data.append(vals)
+                counts.append(len(vals))
+
+            if len(cats) == 0:
+                self.ax.text(0.5, 0.5, "No numeric data", ha="center", va="center")
+                self.ax.set_axis_off()
+            else:
+                positions = np.arange(len(cats))
+
+                vp = self.ax.violinplot(
+                    data,
+                    positions=positions,
+                    vert=True,
+                    showmeans=False,
+                    showmedians=True,
+                    showextrema=False,
+                )
+
+                # axis labels, with n in category labels
+                self.ax.set_xlabel(x_col)
+                self.ax.set_ylabel(y_col)
+                self.ax.set_xticks(positions)
+                self.ax.set_xticklabels(
+                    [f"{c}\n(n={n})" for c, n in zip(cats, counts)],
+                    rotation=45,
+                    ha="right",
+                )
+                self.ax.set_title("")
+                self.fig.suptitle("")
 
             # DATE on Y-axis only (because X is CAT)
             if ty == "DATE":
@@ -995,13 +1360,44 @@ class DataExplorer(tk.Tk):
         # 3) numeric/DATE (X) vs CAT (Y): numeric on X, categories on Y
         elif ty == "CAT" and tx in ["CONT", "ORD", "DATE"]:
             df_plot = pd.DataFrame({"cat": y.astype(str), "val": x})
-            df_plot.boxplot(column="val", by="cat", ax=self.ax)
-            self.ax.set_xlabel(y_col)
-            self.ax.set_ylabel(x_col)
-            self.ax.set_title("")
-            self.fig.suptitle("")
 
-            # IMPORTANT FIX: DATE is on Y-axis (val), not X
+            cats = []
+            data = []
+            counts = []
+
+            for cat, group in df_plot.groupby("cat"):
+                vals = pd.to_numeric(group["val"], errors="coerce").dropna().values
+                if len(vals) == 0:
+                    continue
+                cats.append(cat)
+                data.append(vals)
+                counts.append(len(vals))
+
+            if len(cats) == 0:
+                self.ax.text(0.5, 0.5, "No numeric data", ha="center", va="center")
+                self.ax.set_axis_off()
+            else:
+                positions = np.arange(len(cats))
+
+                vp = self.ax.violinplot(
+                    data,
+                    positions=positions,
+                    vert=False,  # horizontal violins
+                    showmeans=False,
+                    showmedians=True,
+                    showextrema=False,
+                )
+
+                self.ax.set_xlabel(x_col)   # numeric axis
+                self.ax.set_ylabel(y_col)   # categorical axis
+
+                self.ax.set_yticks(positions)
+                self.ax.set_yticklabels(
+                    [f"{c} (n={n})" for c, n in zip(cats, counts)]
+                )
+                self.ax.set_title("")
+                self.fig.suptitle("")
+
             if tx == "DATE":
                 yticks = self.ax.get_yticks()
                 self.ax.set_yticks(yticks)
@@ -1013,14 +1409,64 @@ class DataExplorer(tk.Tk):
         elif tx == "CAT" and ty == "CAT":
             table = pd.crosstab(x, y)
             if not table.empty:
-                im = self.ax.imshow(table, aspect="auto")
+                # row/col totals
+                row_totals = table.sum(axis=1)
+                col_totals = table.sum(axis=0)
+                grand_total = table.values.sum()
+
+                mode = self.cat_norm_mode.get()
+
+                if mode == "row":         # normalise by X (rows)
+                    heat = table.div(row_totals.replace(0, np.nan), axis=0)
+                    title = "Row-normalised proportion (by X group)"
+                elif mode == "col":       # normalise by Y (columns)
+                    heat = table.div(col_totals.replace(0, np.nan), axis=1)
+                    title = "Column-normalised proportion (by Y group)"
+                elif mode == "total":     # overall proportion of total N
+                    heat = table / grand_total if grand_total > 0 else table.astype(float)
+                    title = "Overall proportion of total"
+                else:                     # "none" → raw counts
+                    heat = table.astype(float)
+                    title = "Count heatmap"
+
+                im = self.ax.imshow(heat.values, aspect="auto")
+
+                # ticks with group sizes
                 self.ax.set_xticks(range(len(table.columns)))
-                self.ax.set_xticklabels(table.columns, rotation=90)
+                self.ax.set_xticklabels(
+                    [f"{col}\n(n={col_totals[col]})" for col in table.columns],
+                    rotation=90,
+                )
+
                 self.ax.set_yticks(range(len(table.index)))
-                self.ax.set_yticklabels(table.index)
+                self.ax.set_yticklabels(
+                    [f"{idx} (n={row_totals[idx]})" for idx in table.index]
+                )
+
                 self.ax.set_xlabel(y_col)
                 self.ax.set_ylabel(x_col)
-                self.ax.set_title("Count heatmap")
+                self.ax.set_title(title)
+
+                # overlay counts in each cell (raw n, not normalised)
+                max_val = np.nanmax(heat.values)
+                if np.isnan(max_val):
+                    max_val = 0.0
+                thresh = max_val / 2.0 if max_val > 0 else 0
+
+                for i, row_name in enumerate(table.index):
+                    for j, col_name in enumerate(table.columns):
+                        count = table.iloc[i, j]
+                        val = heat.iloc[i, j]
+                        colour = "white" if (max_val > 0 and val > thresh) else "black"
+                        self.ax.text(
+                            j, i,
+                            str(count),
+                            ha="center",
+                            va="center",
+                            color=colour,
+                            fontsize=30,
+                        )
+
                 self.cbar = self.fig.colorbar(
                     im, ax=self.ax, fraction=0.046, pad=0.04
                 )
@@ -1063,11 +1509,9 @@ class DataExplorer(tk.Tk):
         stats_results = {}
         pair = (tx, ty)
 
-        # CAT–CAT
         if tx == "CAT" and ty == "CAT":
             stats_results.update(chi2_and_cramers_v(x, y))
 
-        # CONT/ORD/DATE vs CONT/ORD/DATE
         if tx in ["CONT", "ORD", "DATE"] and ty in ["CONT", "ORD", "DATE"]:
             stats_results.update(
                 pearson_spearman(
@@ -1076,13 +1520,11 @@ class DataExplorer(tk.Tk):
                 )
             )
 
-        # CAT vs CONT-ish → ANOVA
         if tx == "CAT" and ty in ["CONT", "ORD", "DATE"]:
             stats_results.update(anova_cat_cont(x, pd.to_numeric(y, errors="coerce")))
         if ty == "CAT" and tx in ["CONT", "ORD", "DATE"]:
             stats_results.update(anova_cat_cont(y, pd.to_numeric(x, errors="coerce")))
 
-        # LOC: for now treat as continuous (you can swap in Moran / Mantel later)
         if "LOC" in pair and ("CONT" in pair or "ORD" in pair or "DATE" in pair):
             stats_results.update(
                 pearson_spearman(
@@ -1091,7 +1533,6 @@ class DataExplorer(tk.Tk):
                 )
             )
 
-        # Show stats
         self.stats_text.delete("1.0", tk.END)
         if stats_results:
             for k, v in stats_results.items():
@@ -1101,6 +1542,7 @@ class DataExplorer(tk.Tk):
                     self.stats_text.insert(tk.END, f"{k}: {v}\n")
         else:
             self.stats_text.insert("1.0", "No implemented tests for this combination yet.")
+
 
 # -----------------------------------------------------------------------------
 # 4. RUN
