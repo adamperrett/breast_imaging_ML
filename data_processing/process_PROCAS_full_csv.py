@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-import os
+from tqdm import tqdm
+import os, sys
 import re
 import datetime as dt
 from scipy import stats
@@ -10,15 +11,55 @@ import tkinter as tk
 from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+def resource_path(relative_path: str) -> str:
+    """
+    Get absolute path to resource, works for dev and for PyInstaller.
+    - In normal Python: folder containing the script / exe
+    - In PyInstaller .exe: the temporary _MEIPASS folder
+    """
+    if hasattr(sys, "_MEIPASS"):  # PyInstaller bundled
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
+    return os.path.join(base_path, relative_path)
+
 csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
 save_dir = csv_directory  # 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
 
 csv_name = 'PROCAS_full_data_16-03-2024.csv'
-save_name = 'processed_PROCAS_full_data_16-03-2024.csv'
+csv_file_pointer = os.path.join(csv_directory, csv_name)
+cancers_name = 'PROCAS_CANCER_DATABASE_first_process.csv'
+cancers_file_pointer = os.path.join(csv_directory, cancers_name)
+save_name = 'processed_PROCAS_full_data_with_cancer_data.csv'
 
-csv_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
+csv_data = pd.read_csv(csv_file_pointer, sep=',')
+cancers_data = pd.read_csv(cancers_file_pointer, sep=',')
 
 csv_processed_previously = False
+
+class CaseInsensitiveDict(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.update(*args, **kwargs)
+
+    def _k(self, key):
+        return key.casefold() if isinstance(key, str) else key
+
+    def __setitem__(self, key, value):
+        super().__setitem__(self._k(key), value)
+
+    def __getitem__(self, key):
+        return super().__getitem__(self._k(key))
+
+    def get(self, key, default=None):
+        return super().get(self._k(key), default)
+
+    def __contains__(self, key):
+        return super().__contains__(self._k(key))
+
+    def update(self, *args, **kwargs):
+        for k, v in dict(*args, **kwargs).items():
+            self[k] = v
 
 def date_to_number(d):
     # expected format "23/06/2025"
@@ -37,6 +78,255 @@ def number_to_date(n):
         return d.strftime("%d/%m/%Y")
     except Exception:
         return ""
+
+def broken_dates(n):
+    if n is None:
+        return ""
+    try:
+        d = dt.date.fromordinal(int(n))
+        return d.strftime("%d/%m/%Y")
+    except Exception:
+        return ""
+
+def extract_subtypes_from_path(column):
+    print("extracting PATH columns")
+    column_indexes = {
+        'DCIS': 0,
+        'IDC': 1,
+        'LCIS': 2,
+        'Metastatic': 3,
+        'Mucinous': 4,
+        'Phyllodes': 5,
+        'Papillary': 6,
+        'Apocrine': 7,
+        'Adenoid Cystic': 8,
+        'Metaplastic': 9,
+        'Medullary': 10,
+        'Tubular': 11,
+        'ILC': 12,
+        'Invasive Cribriform': 13,
+        'DNK': 14,
+    }
+    path_entries = CaseInsensitiveDict({
+        ' ': ['DNK'],                                                                                           # n=1
+        'DCIS': ['DCIS'],                                                                                       # n=300
+        'DCIS ': ['DCIS'],                                                                                      # n=2
+        'DCIS & Hybrid DCIS/LCIS': ['DCIS', 'LCIS'],                                                            # n=1
+        'DCIS (anterior: comedo necrosis / posterior: solid, cribriform & comedo type DCIS)': ['DCIS'],         # n=1
+        'DCIS (CRIBIFORM) ': ['DCIS'],                                                                          # n=1
+        'DCIS (cribriform & flat)': ['DCIS'],                                                                   # n=1
+        'DCIS (cribriform & papillary with focal necrosis) & LCIS': ['DCIS', 'LCIS'],                            # n=1
+        'DCIS (cribriform & solid)': ['DCIS'],                                                                  # n=1
+        'DCIS (cribriform)': ['DCIS'],                                                                          # n=3
+        'DCIS (micro-papillary & comedo)': ['DCIS'],                                                            # n=1
+        'DCIS (micropapillary, cribriform & flat)': ['DCIS'],                                                   # n=1
+        'DCIS (solid & comedo)': ['DCIS'],                                                                      # n=3
+        'DCIS (solid & cribriform)': ['DCIS'],                                                                  # n=5
+        'DCIS (solid, cribriform & micropapillary)': ['DCIS'],                                                  # n=1
+        'DCIS (solid, papillary & comedo with areas of lobular cancerisation).': ['DCIS'],                      # n=1
+        'DCIS + Invasive mucinous carcinoma': ['DCIS', 'Mucinous'],                                             # n=1
+        'DCIS and LCIS': ['DCIS', 'LCIS'],                                                                      # n=5
+        'DCIS Comedonecrosis': ['DCIS'],                                                                        # n=1
+        'DCIS intermediate grade;solid cribriform': ['DCIS'],                                                   # n=1
+        'DCIS solid': ['DCIS'],                                                                                 # n=1
+        'DCIS solid & comedo': ['DCIS'],                                                                        # n=1
+        'DCIS with IDC + LCIS': ['DCIS', 'IDC', 'LCIS'],                                                        # n=1
+        'DCIS with lobular cancerisation & malignant calcification': ['DCIS', 'ILC'],                           # n=1
+        'DCIS with microinvasion': ['DCIS'],                                                                    # n=2
+        'DCIS/encysted papillary carcinoma': ['DCIS', 'Papillary'],                                             # n=1
+        'Encapsulated papillary carcinoma with peripheral foci of invasive mucinous carcinoma with DCIS':
+        ['Papillary', 'Mucinous', 'DCIS'],                                                                      # n=1
+        'Encysted papillary carcinoma': ['Papillary'],                                                          # n=2
+        'Encysted papillary carcinoma with DCIS': ['DCIS', 'Papillary'],                                        # n=2
+        'EPC and DCIS': ['DCIS'],                                                                               # n=1
+        'Foci of Microcalcification with DCIS': ['DCIS'],                                                       # n=1
+        'High Grade Neuroendocrine Carcinoma/Small Cell Carcinoma with DCIS': ['DCIS'],                         # n=1
+        'IDC': ['IDC'],                                                                                         # n=324
+        'IDC ': ['IDC'],                                                                                        # n=11
+        'IDC  ': ['IDC'],                                                                                       # n=2
+        'IDC   ': ['IDC'],                                                                                      # n=1
+        'IDC  (micro-papillary)': ['IDC', 'Papillary'],                                                         # n=1
+        'IDC - Lobular (alveolar variant)': ['IDC', 'LCIS'],                                                    # n=1
+        'IDC - solid papillary / ductal': ['IDC'],                                                              # n=1
+        'IDC & ILC (mixed) with LCIS & DCIS (Cribriform & flat)': ['IDC', 'ILC', 'LCIS', 'DCIS'],               # n=1
+        'IDC & Invasive Lobular carcinoma (Mixed) with LCIS': ['IDC', 'ILC', 'LCIS'],                           # n=1
+        'IDC & Lobular Carcinoma': ['IDC', 'ILC'],                                                              # n=1
+        'IDC (cribriform) with DCIS (cribriform)': ['IDC', 'DCIS'],                                             # n=1
+        'IDC (localised)': ['IDC'],                                                                             # n=1
+        'IDC (mucinous & papillary components) with DCIS': ['IDC', 'DCIS'],                                     # n=1
+        'IDC (papillary) with DCIS': ['IDC', 'DCIS'],                                                           # n=1
+        'IDC + DCIS': ['IDC', 'DCIS'],                                                                          # n=24
+        'IDC + DCIS - cribriform': ['IDC', 'DCIS'],                                                             # n=1
+        'IDC + DCIS - Intermediate/high grade': ['IDC', 'DCIS'],                                                # n=1
+        'IDC + LCIS': ['IDC', 'LCIS'],                                                                          # n=1
+        'IDC and ILC with DCIS and LCIS': ['IDC', 'ILC', 'DCIS', 'LCIS'],                                       # n=1
+        'IDC or Invasive cribform': ['IDC', 'Invasive Cribriform'],                                             # n=1
+        'IDC with apocrine features': ['IDC'],                                                                  # n=2
+        'IDC with apocrine features & DCIS': ['IDC', 'DCIS'],                                                   # n=1
+        'IDC with DCIS': ['IDC', 'DCIS'],                                                                       # n=865
+        'IDC with DCIS ': ['IDC', 'DCIS'],                                                                      # n=6
+        'IDC with DCIS & LCIS': ['IDC', 'DCIS', 'LCIS'],                                                        # n=1
+        'IDC with DCIS (Apocrine type)': ['IDC', 'DCIS'],                                                       # n=1
+        'IDC with DCIS (biopsy)    DCIS with microinvasion (surgery post chemo)': ['IDC', 'DCIS'],              # n=1
+        'IDC with DCIS (cribrifirm & solid with focal comedo necrosis)': ['IDC', 'DCIS'],                       # n=1
+        'IDC with DCIS (cribriform)': ['IDC', 'DCIS'],                                                          # n=7
+        'IDC with DCIS (cribriform) Tumour 1': ['IDC', 'DCIS'],                                                 # n=1
+        'IDC with DCIS (papillary)': ['IDC', 'DCIS'],                                                           # n=1
+        'IDC with DCIS (papillary, flat, solid, cribriform)': ['IDC', 'DCIS'],                                  # n=1
+        'IDC with DCIS (solid & comedo)': ['IDC', 'DCIS'],                                                      # n=2
+        'IDC with DCIS (solid)': ['IDC', 'DCIS'],                                                               # n=2
+        'IDC with DCIS (solid, cribriform & comedo-type)': ['IDC', 'DCIS'],                                     # n=1
+        'IDC with DCIS and LCIS': ['IDC', 'DCIS', 'LCIS'],                                                      # n=9
+        'IDC with DCIS, lobular features': ['IDC', 'DCIS'],                                                     # n=1
+        'IDC with DCIS+LCIS': ['IDC', 'DCIS', 'LCIS'],                                                          # n=1
+        'IDC with Encysted papillary carcinoma': ['IDC', 'Papillary'],                                          # n=1
+        'IDC with hybrid DCIS/LCIS': ['IDC', 'DCIS', 'LCIS'],                                                   # n=1
+        'IDC with LCIS': ['IDC', 'LCIS'],                                                                       # n=6
+        'IDC with lobular features': ['IDC'],                                                                   # n=4
+        'IDC with lobular features & DCIS': ['IDC', 'DCIS'],                                                    # n=1
+        'IDC with Lobular features + DCIS': ['IDC', 'DCIS'],                                                    # n=3
+        'IDC with Lobular features + DCIS & LCIS': ['IDC', 'DCIS', 'LCIS'],                                     # n=1
+        'IDC with Lobular Features with DCIS': ['IDC', 'DCIS'],                                                 # n=6
+        'IDC with lobular Neoplasia In Situ': ['IDC', 'LCIS'],                                                  # n=1
+        'IDC with lobular pattern': ['IDC'],                                                                    # n=1
+        'IDC with micropapillary growth & DCIS (solid)': ['IDC', 'Papillary', 'DCIS'],                          # n=1
+        'IDC, NOS with DCIS': ['IDC', 'DCIS'],                                                                  # n=1
+        'IDC+ DCIS': ['IDC', 'DCIS'],                                                                           # n=1
+        'IDC+DCIS': ['IDC', 'DCIS'],                                                                            # n=15
+        'IDC+DCIS ': ['IDC', 'DCIS'],                                                                           # n=1
+        'IDC+DCIS - intermediate with solid and cribriform':['IDC', 'DCIS'],                                    # n=1
+        'IDC+DCIS - two areas': ['IDC', 'DCIS'],                                                                # n=1
+        'ILC with DCIS': ['ILC', 'DCIS'],                                                                       # n=1
+        'ILC with LCIS': ['ILC', 'LCIS'],                                                                       # n=1
+        'Infiltrating Duct Carcinoma': ['IDC'],                                                                 # n=4
+        'Infiltrating Duct Carcinoma with DCIS': ['IDC', 'DCIS'],                                               # n=1
+        'Infiltrating Duct Carcinoma, NOS': ['IDC'],                                                            # n=3
+        'Infiltrating Duct mixed with other types of caricnoma': ['IDC'],                                       # n=1
+        'Infiltrating Ductal Carcinoma with DCIS': ['IDC', 'DCIS'],                                             # n=1
+        'Infiltrating Metastatic Carcinoma': ['Metastatic'],                                                    # n=1
+        'Intracystic papillary carcinoma with DCIS': ['DCIS'],                                                  # n=1
+        'Intracystic papillary carcinoma with DCIS ': ['DCIS'],                                                 # n=1
+        'Intraductal carcinoma non-infiltrating': ['DCIS'],                                                     # n=1
+        'Intraductal Carcinoma, non-infiltrating': ['DCIS'],                                                    # n=1
+        'Invasive': ['Invasive Cribriform'],                                                                    # n=1
+        'Invasive Adenoid Cystic Carcinoma with LCIS': ['Adenoid Cystic', 'LCIS'],                              # n=1
+        'Invasive Apocine Carcinoma ': ['Apocrine'],                                                            # n=1
+        'Invasive Apocrine Carcinoma': ['Apocrine'],                                                            # n=2
+        'Invasive Apocrine Carcinoma with DCIS': ['Apocrine', 'DCIS'],                                          # n=3
+        'Invasive apocrine carcinoma with DCIS ': ['Apocrine', 'DCIS'],                                         # n=1
+        'Invasive Carcinoma': ['Invasive Cribriform'],                                                          # n=1
+        'Invasive Carcinoma (micro-papillary)': ['Invasive Cribriform', 'Papillary'],                           # n=1
+        'Invasive Carcinoma with apocrine features': ['Invasive Cribriform'],                                   # n=1
+        'Invasive Carcinoma with Lobular Features': ['Invasive Cribriform'],                                    # n=1
+        'Invasive Carcinoma with Medullary features': ['Invasive Cribriform'],                                  # n=1
+        'Invasive cribiform carcinoma': ['Invasive Cribriform'],                                                # n=2
+        'Invasive cribiform carcinoma with DCIS': ['Invasive Cribriform', 'DCIS'],                              # n=1
+        'Invasive Cribriform Carcinoma, with DCIS, Lobular': ['Invasive Cribriform', 'DCIS'],                   # n=1
+        'Invasive Ductal & Lobular Carcinoma with DCIS': ['IDC', 'ILC', 'DCIS'],                                # n=1
+        'Invasive Ductal/Lobular Carcinoma with LCIS': ['IDC', 'ILC', 'LCIS'],                                  # n=2
+        'Invasive Ductulo-Lobular Carcinoma': ['IDC', 'ILC'],                                                   # n=2
+        'INVASIVE LOBULAR': ['ILC'],                                                                            # n=3
+        'Invasive lobular carcinoma': ['ILC'],                                                                  # n=41
+        'Invasive lobular carcinoma ': ['ILC'],                                                                 # n=1
+        'Invasive Lobular Carcinoma with DCIS': ['ILC', 'DCIS'],                                                # n=6
+        'Invasive lobular carcinoma with DCIS  (cribriform)            ': ['ILC', 'DCIS'],                      # n=1
+        'Invasive Lobular Carcinoma with DCIS and LCIS': ['ILC', 'DCIS', 'LCIS'],                               # n=6
+        'Invasive lobular carcinoma with LCIS': ['ILC', 'LCIS'],                                                # n=91
+        'Invasive lobular carcinoma with LCIS  ': ['ILC', 'LCIS'],                                              # n=2
+        'Invasive Lobular Carcnioma with LCIS': ['ILC', 'LCIS'],                                                # n=1
+        'Invasive lobular with LCIS': ['ILC', 'LCIS'],                                                          # n=2
+        'Invasive lobular with lobular neoplasia in situ': ['ILC', 'LCIS'],                                     # n=1
+        'Invasive Lobular/Ductal Carcinoma': ['ILC', 'IDC'],                                                    # n=1
+        'Invasive Lobular/Ductal Carcinoma with DCIS and LCIS': ['ILC', 'IDC', 'DCIS', 'LCIS'],                 # n=1
+        'Invasive lobular/ductal carcinoma with LCIS': ['ILC', 'IDC', 'LCIS'],                                  # n=1
+        'Invasive medullary-like carcinoma': ['Medullary'],                                                     # n=2
+        'Invasive metaplastic carcinoma ': ['Metaplastic'],                                                     # n=1
+        'Invasive metaplastic carcinoma with DCIS': ['Metaplastic', 'DCIS'],                                    # n=2
+        'Invasive metaplastic/matrix-producing carcinoma': ['Metaplastic'],                                     # n=1
+        'Invasive micropapillary + DCIS. ': ['Papillary', 'DCIS'],                                              # n=1
+        'Invasive Micropapillary Carcinoma': ['Papillary'],                                                     # n=3
+        'Invasive Micropapillary Carcinoma with DCIS': ['Papillary', 'DCIS'],                                   # n=3
+        'Invasive Micropapillary Carcinoma with DCIS and LCIS': ['Papillary', 'DCIS', 'LCIS'],                  # n=1
+        'Invasive mixed lobular-ductal carcinoma with DCIS and LCIS': ['ILC', 'IDC', 'DCIS', 'LCIS'],           # n=1
+        'Invasive Mucinous Carcinoma': ['Mucinous'],                                                            # n=13
+        'Invasive mucinous carcinoma ': ['Mucinous'],                                                           # n=2
+        'Invasive Mucinous Carcinoma with DCIS': ['Mucinous', 'DCIS'],                                          # n=12
+        'Invasive mucinous carcinoma with DCIS ': ['Mucinous', 'DCIS'],                                         # n=1
+        'Invasive mucinous carinoma with DCIS': ['Mucinous', 'DCIS'],                                           # n=1
+        'invasive mucinous with DCIS': ['Mucinous', 'DCIS'],                                                    # n=1
+        'Invasive Papillary Carcinoma with DCIS': ['Papillary', 'DCIS'],                                        # n=1
+        'Invasive Pleomorhism Lobular Carcinoma with LCIS': ['ILC', 'LCIS'],                                    # n=1
+        'Invasive Pleomorphic Lobular/Ductal Carcinoma with LCIS & DCIS': ['ILC', 'IDC', 'LCIS'],               # n=1
+        'Invasive Tubular Carcinoma': ['Tubular'],                                                              # n=10
+        'Invasive tubular carcinoma ': ['Tubular'],                                                             # n=1
+        'Invasive Tubular Carcinoma & DCIS': ['Tubular', 'DCIS'],                                               # n=1
+        'Invasive tubular carcinoma with DCIS': ['Tubular', 'DCIS'],                                            # n=8
+        'Invasive Tubular Carcinoma with DCIS & LCIS': ['Tubular', 'DCIS', 'LCIS'],                             # n=1
+        'Invasive Tubular Carcinoma with DCIS and LCIS': ['Tubular', 'DCIS', 'LCIS'],                           # n=1
+        'Invasive tubular carcinoma with LCIS': ['Tubular', 'LCIS'],                                            # n=1
+        'Invasive Tubular Carcninoma with DCIS': ['Tubular', 'DCIS'],                                           # n=1
+        'Invasive tubular mixed': ['Tubular'],                                                                  # n=1
+        'Invasive tubular with DCIS': ['Tubular', 'DCIS'],                                                      # n=2
+        'Invasive Tubulolobular': ['Tubular'],                                                                  # n=1
+        'Invasive Tubulo-lobular Carcinoma with LCIS': ['Tubular', 'LCIS'],                                     # n=1
+        'LCIS + DCIS': ['LCIS', 'DCIS'],                                                                        # n=1
+        'LCIS with DCIS': ['LCIS', 'DCIS'],                                                                        # n=1
+        'Lobular': ['ILC'],                                                                                     # n=1
+        'Lobular Carcinoma': ['ILC'],                                                                           # n=1
+        'Lobular carcinoma with DCIS and LCIS': ['ILC', 'DCIS', 'LCIS'],                                        # n=1
+        'Lobular carcinoma with LCIS': ['ILC', 'LCIS'],                                                         # n=3
+        'Lobular Carcinoma, NOS': ['ILC', 'IDC'],                                                               # n=1
+        'METAPLASTIC CARCINOMA': ['ILC', 'LCIS'],                                                               # n=1
+        'Metastatic Adenocarcinoma': ['Metaplastic'],                                                           # n=1
+        'Metastatic carcinoma': ['Metastatic'],                                                                 # n=2
+        'Metastatic Neuroendocrine Tumour': ['Metastatic'],                                                     # n=1
+        'Mixed ductal and lobular invasive carcinoma with DCIS and LCIS':['ILC', 'IDC', 'DCIS', 'LCIS'],        # n=1
+        'Mixed IDC & Papillary Carcinoma with DCIS': ['IDC', 'Papillary', 'DCIS'],                              # n=1
+        'Mixed IDC and Invasive Mucinous carcinoma with DCIS ': ['IDC', 'Mucinous', 'DCIS'],                    # n=1
+        'MIXED INVASIVE DUCTAL CARCINOMA & INVASIVE MUCINOUS CARCINOMA\n': ['IDC', 'Mucinous', 'DCIS'],       # n=1
+        'Mixed Invasive Ductal/Lobular Carcinoma with DCIS and LCIS': ['IDC', 'DCIS', 'LCIS'],                  # n=1
+        'Mixed Invasive Lobular Carcinoma & Invasive Ductal Carcinoma & DCIS': ['ILC', 'IDC', 'DCIS'],          # n=1
+        'Mixed Lobular': ['ILC'],                                                                               # n=1
+        'Mixed tubular and ductal with DCIS': ['Tubular', 'IDC', 'DCIS'],                                       # n=1
+        'Mucinous Adenocarcinoma': ['Mucinous'],                                                                # n=1
+        'Neuroendocrine carcinoma with DCIS': ['Metastatic', 'DCIS'],                                           # n=1
+        "PAGET'S DISEASE & INTRADUCTAL CARCINOMA": ['DCIS'],                                                    # n=1
+        'Participant rang April 2014 to confirm breast cancer diagnosis August 2013. Recorded on CDMS.':['DNK'],# n=1
+        'Phyllodes Tumour': ['Phyllodes'],                                                                      # n=2
+        'Pleomorphic Invasive lobular with LCIS': ['ILC', 'LCIS'],                                              # n=1
+        'Tubular carcinoma': ['Tubular'],                                                                       # n=3
+        'Tubular Carcinoma with DCIS': ['Tubular', 'DCIS'],                                                     # n=3
+        'Unknown': ['DNK'],                                                                                     # n=4
+        '(blank)': ['DNK'],                                                                                     # n=48
+    })
+    new_columns = {
+        'DCIS': np.zeros([len(column)]),
+        'IDC': np.zeros([len(column)]),
+        'LCIS': np.zeros([len(column)]),
+        'Metastatic': np.zeros([len(column)]),
+        'Mucinous': np.zeros([len(column)]),
+        'Phyllodes': np.zeros([len(column)]),
+        'Papillary': np.zeros([len(column)]),
+        'Apocrine': np.zeros([len(column)]),
+        'Adenoid Cystic': np.zeros([len(column)]),
+        'Metaplastic': np.zeros([len(column)]),
+        'Medullary': np.zeros([len(column)]),
+        'Tubular': np.zeros([len(column)]),
+        'ILC': np.zeros([len(column)]),
+        'Invasive Cribriform': np.zeros([len(column)]),
+        'DNK': np.zeros([len(column)]),
+    }
+    for i, entry in enumerate(column):
+        try:
+            subtypes = path_entries[entry]
+        except:
+            if np.isnan(entry):
+                continue
+            else:
+                print("Something went wrong")
+        for s in subtypes:
+            new_columns[s][i] += 1
+    return new_columns
 
 float_pattern = re.compile(r"-?\d+(?:\.\d+)?")
 
@@ -95,6 +385,17 @@ def too_many_discrete(category):
 def clean_numbers(numbers, num_type):
     return num_type(numbers)
 
+bad_columns_dic = {
+    'IDK what to do with these - please help': {
+        'c_LN': 'what do all the 0/# mean',
+        'c_ER/PR score': 'what do I do about all the slashes and stuff',
+        'c_HER2  score/ comments': 'How to process comments',
+        'c_Ki67 %': 'different breasts/tumours',
+        'c_HER2  score/ comments2': 'How to process not amplified',
+        'c_Ki67 %2': 'ranges/%/>< etc',
+    },
+}
+
 string_mapping = {
     # general framework
     'column_name': {
@@ -103,7 +404,7 @@ string_mapping = {
     },
 
     # actual mappings
-    'post prev biopsy': {
+    'post prev biopsy': { #GE
         '0': 'No',   # n=53462
         '1': 'Yes',   # n=3271
         '2': 'Yes',   # n=17
@@ -111,10 +412,8 @@ string_mapping = {
     },
     'DiagnosisOfCancer <70': {
         'na': 'No',     # n=15
-        'No': 'No',     # n=56140
         'no': 'No',     # n=56140
         'yes': 'Yes',   # n=1747
-        'Yes': 'Yes',   # n=1747
         '': 'DNK'       # n=1
     },
     'screen detected': {
@@ -131,7 +430,6 @@ string_mapping = {
     },
     'Chemoprev Drug': {
         'Anastrozole': 'Anastrozole',   # n=76
-        'Raloxifene': 'Raloxifene',     # n=140
         'raloxifene': 'Raloxifene',     # n=140
         'tamoxifen': 'Tamoxifen',       # n=100
         '': 'None'                      # n=57587
@@ -200,13 +498,11 @@ string_mapping = {
         '': 'Blank'     # n=48380
     },
     'ConsentedToDNA': {
-        'No': 'No',     # n=47883
         'no': 'No',     # n=47883
-        'Yes': 'Yes',   # n=10019
         'yes': 'Yes',   # n=10019
         '': 'Blank'     # n=1
     },
-    'DiagnosisOfCancer': {
+    'DiagnosisOfCancer': {  # ignore
         'Yes': 'Yes',   # n=1532
         '': 'No'        # n=56371
     },
@@ -223,8 +519,7 @@ string_mapping = {
     },
     'OvariesRemoved': {
         'No': 'No',     # n=42022
-        'Yes': 'Yes',   # n=5
-        'Both': 'Both', # n=4977
+        'Yes': 'DNK',   # n=5
         'both': 'Both', # n=4977
         'One': 'One',   # n=2029
         'DNK': 'DNK',   # n=8868
@@ -240,7 +535,6 @@ string_mapping = {
         '': 'No'        # n=57831
     },
     'AnyChildrenYN': {
-        'No': 'No',     # n=7384
         'no': 'No',     # n=7384
         'Yes': 'Yes',   # n=50411
         'DNK': 'DNK',   # n=107
@@ -260,7 +554,6 @@ string_mapping = {
         'C56.X - Malignant neoplasm of ovary': 'OC',                    # n=42
         'C56.X - Malignant neoplasm of ovary and endometrium': 'Both',  # n=1
         'EC': 'EC',                                                     # n=6
-        'Endometrial': 'EC',                                            # n=27
         'endometrial': 'EC',                                            # n=27
         'Ovarian': 'OC',                                                # n=5
         'ovarian cancer': 'OC',                                         # n=1
@@ -284,7 +577,7 @@ string_mapping = {
         'yes': 'Yes',   # n=11184
         '': 'Blank',    # n=46719
     },
-    '2+FHno50': {
+    '2+FHno50': {  # GE
         'more sig': 'more sig', # n=2200
         'yes': 'Yes',           # n=1350
         '': 'Blank',            # n=54353
@@ -311,7 +604,7 @@ string_mapping = {
         'Lost': 'Lost',         # n=27
         '': 'Blank',            # n=1
     },
-    'All good factors': {
+    'All good factors': {    ########## STOPPED HERE
         'spades': 'spades', # n=5
         'yes': 'Yes',       # n=28
         '': 'Blank',        # n=57870
@@ -327,17 +620,13 @@ string_mapping = {
     },
     'AnyExercise': {
         'DNK': 'DNK',   # n=5716
-        'No': 'No',     # n=10801
         'no': 'No',     # n=10801
-        'Yes': 'Yes',   # n=41385
         'yes': 'Yes',   # n=41233
         '': 'Blank',    # n=1
     },
     'AlcoholYN': {
         'DNK': 'DNK',   # n=850
-        'No': 'No',     # n=15817
         'no': 'No',     # n=15817
-        'Yes': 'Yes',   # n=41233
         'yes': 'Yes',   # n=41233
         '': 'Blank',    # n=3
     },
@@ -346,11 +635,8 @@ string_mapping = {
         'Datanot known': 'DNK',             # n=4
         'Not applicable': 'n/a',            # n=1
         'perimenopausal': 'Perimenopausal', # n=10720
-        'Perimenopausal': 'Perimenopausal', # n=10720
         'postmenopausal': 'Postmenopausal', # n=37233
-        'Postmenopausal': 'Postmenopausal', # n=37233
         'premenopausal': 'Premenopausal',   # n=6873
-        'Premenopausal': 'Premenopausal',   # n=6873
         '': 'Blank',                        # n=1
     },
     'postmen': {
@@ -360,15 +646,12 @@ string_mapping = {
     },
     'HRT': {
         'DNK': 'DNK',   # n=540
-        'No': 'No',     # n=36508
         'no': 'No',     # n=36508
         'Yes': 'Yes',   # n=20854
         '': 'Blank',    # n=1
     },
     'HRT2': {
         'DNK': 'DNK',   # n=540
-        'No': 'No',     # n=36508
-        'no': 'No',     # n=36508
         'no': 'No',     # n=36508
         'Yes': 'Yes',   # n=20854
         '': 'Blank',    # n=1
@@ -403,11 +686,7 @@ string_mapping = {
         '': 'Blank',    # n=37325
     },
     'EthnicOrigin': {
-        'Asian or Asian British': 'Asian or Asian British', # n=891
-        'Asian or asian British': 'Asian or Asian British', # n=891
         'Asian or asian british': 'Asian or Asian British', # n=891
-        'Black or Black British': 'Black or Black British', # n=671
-        'Black or black British': 'Black or Black British', # n=671
         'Black or black british': 'Black or Black British', # n=671
         'Data not known': 'DNK',                            # n=1867
         'Jewish': 'Jewish',                                 # n=520
@@ -425,7 +704,6 @@ string_mapping = {
     'StatinsEverYN': {
         ' ': 'Blank',   # n=6
         'DNK': 'DNK',   # n=22306
-        'No': 'No',     # n=27448
         'no': 'No',     # n=27448
         'Yes': 'Yes',   # n=8142
         'yes': 'Yes',   # n=8142
@@ -452,12 +730,10 @@ string_mapping = {
         '': 'Blank',    # n=55829
     },
     'Invasive or CIS or both': {
-        'Both': 'Both',                                                                             # n=1143
         'both': 'Both',                                                                             # n=1143
         'Both?': 'Both',                                                                            # n=1
         'CIS': 'CIS',                                                                               # n=347
         'Definate cancer confirmed by MR 21/01/15. Op 15/01/15 awaiting pathology report.': 'DNK',  # n=1
-        'Invasive': 'Invasive',                                                                     # n=517
         'invasive': 'Invasive',                                                                     # n=517
         'Invasive ': 'Invasive',                                                                    # n=1
         '': 'Blank',                                                                                # n=55893
@@ -482,7 +758,6 @@ string_mapping = {
         'Invasive Lobular Carcinoma with LCIS': 'ILC with LCIS',        # n=1
         'Invasive metaplastic carcinoma with DCIS': 'IMC',              # n=1
         'Invasive mucinous carcinoma': 'IMC',                           # n=2
-        'Invasive Mucinous Carcinoma': 'IMC',                           # n=2
         'Invasive Mucinous Carcinoma with DCIS': 'IMC',                 # n=2
         'Invasive Tubular Carcinoma': 'ITC',                            # n=1
         'Invasive tubular carcinoma with DCIS': 'ITC',                  # n=1
@@ -508,12 +783,9 @@ string_mapping = {
         '': 'Blank',                        # n=57864
     },
     'ER status': {
-        'Negative': 'Negative',                                             # n=238
         'NEGATIVE': 'Negative',                                             # n=238
         'Negative - 0': 'Negative',                                         # n=8
         'positive': 'Positive',                                             # n=1706
-        'Positive': 'Positive',                                             # n=1706
-        'POSITIVE': 'Positive',                                             # n=1706
         'Positive ': 'Positive',                                            # n=3
         'Positive                                   Positive': 'Positive',  # n=1
         'Positive - 2': 'Positive',                                         # n=2
@@ -541,12 +813,8 @@ string_mapping = {
     },
     'PR status': {
         'IDC Negative & ILC Positive ': 'Positive',                         # n=1
-        'Negative': 'Negative',                                             # n=446
-        'negative': 'Negative',                                             # n=446
         'NEGATIVE': 'Negative',                                             # n=446
         'Negative - 0': 'Negative',                                         # n=14
-        'Positive': 'Positive',                                             # n=1494
-        'positive': 'Positive',                                             # n=1494
         'POSITIVE': 'Positive',                                             # n=1494
         'Positive ': 'Positive',                                            # n=7
         'Positive                                                            Positive': 'Positive',  # n=1
@@ -621,9 +889,7 @@ string_mapping = {
         '': 'Blank',    # n=905
     },
     'PreviousCancerDiagnosis': {
-        'No': 'No',     # n=56998
         'no': 'No',     # n=56998
-        'Yes': 'Yes',   # n=905
         'yes': 'Yes',   # n=905
     },
     'Volpara done': {
@@ -638,7 +904,271 @@ string_mapping = {
         'yes': 'Yes',   # n=4268
         '': 'Blank',    # n=53635
     },
+    'c_Prev cancer': {
+        'No': 'No',             # n=1080
+        'Yes': 'Yes',           # n=80
+        'Data not known': 'DNK',# n=6
+        'Not known': 'DNK',     # n=7
+        '': 'DNK',              # n=146
+    },
+    'c_Cancer diagnosis': {
+        'Yes': 'Yes',           # n=2035
+        '': 'DNK',              # n=1
+    },
+    'c_Type of diagnosis - Screen/Inteval (if known)': {
+        ' ': 'DNK',                                         # n=116
+        'INTERVAL': 'Interval',                             # n=21
+        'Self reported by pt on 25/03/2014': 'Interval',    # n=1
+        '': 'DNK',                                          # n=1898
+    },
+    'c_Second diagnosis since joining PROCAS?': {
+        'YES - 15/07/2013': 'Yes',  # n=1
+        'Yes - 20/10/2014': 'Yes',  # n=1
+        'YES - 21/03/2014': 'Yes',  # n=1
+        '': 'DNK',                  # n=2033
+    },
+    'c_Side': {
+        'Left': 'Left',         # n=965
+        'Left ': 'Left',        # n=24
+        'NOT STATED': 'DNK',    # n=1
+        'Right': 'Right',       # n=993
+        'Unknown': 'DNK',       # n=3
+        '': 'DNK',              # n=50
+    },
+    'c_Multifocal?': {
+        ' ': 'No',                          # n=1
+        '2 tumours': '2 tumours',           # n=3
+        'Bilateral': 'Bilateral',           # n=12
+        'Foci x 2 LCIS': '2 tumours',       # n=1
+        'Possible': 'Possible',             # n=9
+        'Seperate focus of LCIS': 'Yes',    # n=1
+        'Yes': 'Yes',                       # n=107
+        'Yes (7 foci)': 'Yes',              # n=1
+        '': 'No',                           # n=1901
+    },
+    'c_Invasive or CIS or both': {
+        ' ': 'DNK',                                                                                 # n=1
+        'Both': 'Both',                                                                             # n=1157
+        'Both?': 'Both',                                                                            # n=1
+        'CIS': 'CIS',                                                                               # n=346
+        'Definate cancer confirmed by MR 21/01/15. Op 15/01/15 awaiting pathology report.': 'DNK',  # n=1
+        'Invasive': 'Invasive',                                                                     # n=468
+        'Invasive ': 'Invasive',                                                                    # n=1
+        '': 'DNK',                                                                                  # n=61
+    },
+    'c_Grade only invasive': {
+        '1': '1',                   # n=230
+        '2': '2',                   # n=579
+        '2.1': '2',                 # n=1
+        '3': '3',                   # n=302
+        ' ': 'DNK',                 # n=36
+        '1 ': '1',                  # n=103
+        '1 (provisional)': '1',     # n=17
+        '1 provisional': '1',       # n=1
+        '2 ': '2',                  # n=174
+        '2 (provisional)': '2',     # n=59
+        '3 ': '3',                  # n=91
+        '3 (IDC), 2 (IMC)': '3',    # n=1
+        '3 (probably)': '3',        # n=1
+        '3 (provisional)': '3',     # n=47
+        'IDC 3 & ILC 2': '3',       # n=1
+        'Not Known': 'DNK',         # n=1
+        '': 'DNK',                  # n=392
+    },
+    'c_DCIS only grade': {
+        '3': 'High',                                                        # n=1
+        ' ': ' ',                                                           # n=217
+        'High': 'High',                                                     # n=419
+        'High ': 'High',                                                    # n=4
+        'High Grade': 'High',                                               # n=7
+        'Intemediate & High': 'High',                                       # n=1
+        'Intermedaite': 'Intermediate',                                     # n=1
+        'Intermediate': 'Intermediate',                                     # n=353
+        'intermediate ': 'Intermediate',                                    # n=1
+        'Intermediate & High': 'High',                                      # n=63
+        'Intermediate (anterior & posterior) & High (posterior)': 'High',   # n=1
+        'Intermediate Grade': 'Intermediate',                               # n=2
+        'Intermediate&High Grade': 'High',                                  # n=1
+        'Intermediate/High': 'High',                                        # n=142
+        'Intermidate & High': 'High',                                       # n=1
+        'Low': 'Low',                                                       # n=175
+        'Low & High': 'High',                                               # n=1
+        'Low & Intermediate': 'Intermediate',                               # n=26
+        'Low Grade': 'Low',                                                 # n=1
+        'Low, Intermediate & High': 'High',                                 # n=1
+        'Low/Intermediate': 'Intermediate',                                 # n=104
+        'Low/Intermediate/High': 'High',                                    # n=12
+        '': 'DNK',                                                          # n=502
 
+    },
+    'c_Vascular invasion': {
+        ' ': 'DNK',                                                                 # n=56
+        'N': 'No',                                                                  # n=3
+        'N/A': 'DNK',                                                               # n=12
+        'No': 'No',                                                                 # n=1183
+        'No ': 'No',                                                                # n=1
+        'No                                                             No': 'No',  # n=1
+        'Not Known': 'DNK',                                                         # n=2
+        'Not reported': 'DNK',                                                      # n=5
+        'Possible': 'Possible',                                                     # n=37
+        'Probable': 'Possible',                                                     # n=3
+        'Suspicious': 'Possible',                                                   # n=1
+        'Uncertain': 'Uncertain',                                                   # n=22
+        'Unknown': 'DNK',                                                           # n=1
+        'Y': 'Yes',                                                                 # n=3
+        'Yes': 'Yes',                                                               # n=247
+        'Yes ': 'Yes',                                                              # n=1
+        'Yes - Extensive': 'Yes',                                                   # n=1
+        '': 'DNK',                                                                  # n=457
+    },
+    'c_ER  status': {
+        ' ': ' ',                                                           # n=5
+        'IDC Negative & ILC Positive ': 'Positive',                         # n=1
+        'Negative': 'Negative',                                             # n=240
+        'Positive': 'Positive',                                             # n=1712
+        'Positive ': 'Positive',                                            # n=3
+        'Positive                                   Positive': 'Positive',  # n=1
+        'Positive, Positive': 'Positive',                                   # n=3
+        'Positive`': 'Positive',                                            # n=1
+        'Positve': 'Positive',                                              # n=1
+        'Postive': 'Positive',                                              # n=3
+        'Potitive': 'Positive',                                             # n=1
+        'Unable to assess': 'DNK',                                          # n=1
+        '': 'DNK',                                                          # n=64
+    },
+    'c_PR Status': {
+        ' ': ' ',                                                                                   # n=5
+        'IDC Negative & ILC Positive ': 'Positive',                                                 # n=1
+        'Negative': 'Negative',                                                                     # n=448
+        'Positive': 'Positive',                                                                     # n=1501
+        'Positive ': 'Positive',                                                                    # n=7
+        'Positive                                                            Positive': 'Positive', # n=1
+        'Postive': 'Positive',                                                                      # n=3
+        '': 'DNK',                                                                                  # n=70
+    },
+    'c_HER2 status': {
+        '  ': '  ',                                                                             # n=21
+        ' ': ' ',                                                                               # n=1
+        'N/A': 'N/A',                                                                           # n=9
+        'N/A                                                             Negative': 'Negative', # n=1
+        'Nagative': 'Negative',                                                                 # n=1
+        'Negative': 'Negative',                                                                 # n=1462
+        'Negative ': 'Negative',                                                                # n=13
+        'Negative;Negative': 'Negative',                                                        # n=1
+        'Not performed': 'Not performed',                                                       # n=7
+        'Not reported': 'Not reported',                                                         # n=38
+        'Positive': 'Positive',                                                                 # n=179
+        'Positive ': 'Positive',                                                                # n=1
+        'Positive & Negative': 'Positive',                                                      # n=1
+        'Positive(IDC)': 'Positive',                                                            # n=1
+        'Positve': 'Positive',                                                                  # n=1
+        'Postitive': 'Positive',                                                                # n=1
+        'Postive': 'Positive',                                                                  # n=1
+        '': 'DNK',                                                                              # n=297
+    },
+    'c_Side (if different)': {
+        'Left': 'Left',     # n=13
+        'Right': 'Right',   # n=13
+        '': 'Blank',        # n=13
+    },
+    'c_PATH2': {
+        'DCIS': 'DCIS',                                                                                         # n=44
+        'DCIS (cribriform)': 'DCIS',                                                                            # n=1
+        'DCIS (solid)': 'DCIS',                                                                                 # n=1
+        'DCIS with cancerisation of lobules': 'DCIS',                                                           # n=1
+        'DCIS with microinvasion': 'DCIS',                                                                      # n=1
+        'IDC': 'IDC',                                                                                           # n=54
+        'IDC  ': 'IDC',                                                                                         # n=1
+        'IDC + DCIS': 'IDC + DCIS',                                                                             # n=2
+        'IDC with DCIS': 'IDC + DCIS',                                                                          # n=70
+        'IDC with DCIS (cribriform)': 'IDC with DCIS',                                                          # n=1
+        'IDC with DCIS (cribriform) Tumour 2': 'IDC + DCIS',                                                    # n=1
+        'IDC with DCIS and LCIS': 'IDC + DCIS + LCIS',                                                          # n=2
+        'IDC with lobular features and with DCIS': 'IDC + DCIS',                                                # n=1
+        'IDC with lobular pattern': 'IDC',                                                                      # n=1
+        'IDC with lobular pattern growth with DCIS': 'IDC + DCIS',                                              # n=1
+        'ILC': 'ILC',                                                                                           # n=1
+        'ILC with LCIS': 'ILC + LCIS',                                                                          # n=1
+        'Invasive carcinoma': 'Invasive carcinoma',                                                             # n=3
+        'Invasive carcinoma  with DCIS': 'Invasive carcinoma + DCIS',                                           # n=1
+        'Invasive ductal with DCIS': 'Invasive ductal with DCIS',                                               # n=1
+        'Invasive Lobular Carcinoma': 'Invasive Lobular Carcinoma',                                             # n=8
+        'Invasive Lobular Carcinoma ': 'Invasive Lobular Carcinoma',                                            # n=1
+        'Invasive lobular carcinoma with DCIS': 'Invasive lobular carcinoma + DCIS',                            # n=1
+        'Invasive Lobular Carcinoma with LCIS': 'Invasive Lobular Carcinoma + LCIS',                            # n=30
+        'Invasive Lobular Carcinoma with PLCIS': 'Invasive Lobular Carcinoma + PLCIS',                          # n=1
+        'Invasive Micropapillary Carcinoma': 'Invasive Micropapillary Carcinoma',                               # n=2
+        'Invasive micropapillary carcinoma with DCIS': 'Invasive micropapillary carcinoma + DCIS',              # n=1
+        'Invasive Mucinous Carcinoma with DCIS': 'Invasive Mucinous Carcinoma with DCIS',                       # n=1
+        'Invasive Mucionous Carcinoma with DCIS': 'Invasive Mucinous Carcinoma with DCIS',                      # n=1
+        'Invasive Pleomorphic Lobular Carcinoma': 'Invasive Pleomorphic Lobular Carcinoma',                     # n=1
+        'Invasive Pleomorphic Lobular Carcinoma with LCIS': 'Invasive Pleomorphic Lobular Carcinoma + LCIS',    # n=1
+        'Invasive tubular +DCIS': 'Invasive tubular + DCIS',                                                    # n=1
+        'Invasive Tubular Carcinoma with DCIS': 'Invasive Tubular Carcinoma + DCIS',                            # n=1
+        'Invasive with DCIS': 'Invasive + DCIS',                                                                # n=1
+        'Invaslive Lobular Carcinoma with LCIS': 'Invasive Lobular Carcinoma + LCIS',                           # n=1
+        'Lobular Carcinoma': 'Lobular Carcinoma',                                                               # n=2
+        'Mixed ductal and lobular invasive carcinoma with DCIS and LCIS':
+            'Mixed ductal and lobular invasive carcinoma + DCIS + LCIS',                                        # n=1
+        'Tubular Carcinoma': 'Tubular Carcinoma',                                                               # n=1
+        '': 'DNK',                                                                                              # n=1791
+    },
+    'c_Invasive/ CIS': {
+        'Both': 'Both',             # n=121
+        'CIS': 'CIS',               # n=48
+        'Invasive': 'Invasive',     # n=75
+        'Invasive ': 'Invasive',    # n=1
+        '': 'DNK',                  # n=1791
+    },
+    'c_Grade (only invasive)': {
+        '1': '1',                   # n=40
+        '2': '2',                   # n=110
+        '3': '3',                   # n=23
+        '30': '3',                  # n=1
+        '1 ': '1',                  # n=1
+        '1 (provisional)': '1',     # n=1
+        '2 (provisional)': '2',     # n=9
+        '3 (provisional)': '3',     # n=4
+        'Intermediate': '2',        # n=1
+        '': 'n/a',                  # n=1846
+    },
+    'c_DCIS only grade2': {
+        'High': 'High',                         # n=38
+        'Intermediate': 'Intermediate',         # n=36
+        'Intermediate & High': 'High',          # n=5
+        'Intermediate / High': 'High',          # n=1
+        'Intermediate and high': 'High',        # n=1
+        'Intermediate/High': 'High',            # n=11
+        'Low': 'Low',                           # n=18
+        'Low & Intermediate': 'Intermediate',   # n=4
+        'Low/Intermediate': 'Intermediate',     # n=7
+        'Low/Intermediate/High': 'High',        # n=1
+        '': 'n/a',                              # n=1914
+    },
+    'c_ER  status2': {
+        'Negative': 'Negative',     # n=10
+        'Positive': 'Positive',     # n=178
+        'Positive ': 'Positive',    # n=3
+        'Postive': 'Positive',      # n=1
+        '': 'DNK',                  # n=1844
+    },
+    'c_PR Status2': {
+        'Negative': 'Negative',     # n=42
+        'Positive': 'Positive',     # n=151
+        '': 'n/a',                  # n=1843
+    },
+    'c_HER2 status2': {
+        'Negative ': 'Negative',    # n=1
+        'Negaitve ': 'Negative',    # n=158
+        'Not Reported': 'DNK',      # n=1
+        'Positive': 'Positive',     # n=18
+        'Postive': 'Positive',      # n=1
+        '': 'n/a',                  # n=1857
+    },
+
+    'c_': {
+
+    },
 
     'smol': {
         'no': 'No',     # n=
@@ -653,105 +1183,114 @@ string_mapping = {
 }
 
 numerical_columns = {  # r=range, b=number of blank, t=[non-numerical entries]
-    'Age FDR OC': int,                  # r=(12-94),        b=56771, t=['Data not known']
-    'age first prescribed': float,      # r=(39-75),        b=57587, t=[]
-    'BMI 20': float,                    # r=(8 -94),        b= 9183, t=[]
-    'BMI 202': float,                   # r=(8 -66),        b= 7260, t=[0, inaccurate, #REF!]
-    'BMI20grp': int,                    # r=(1 - 4),        b= 9183, t=[]
-    'BMI20grp2': float,                 # r=(1 - 4),        b= 7718, t=[inaccurate]
-    'BMI20Grp3': float,                 # r=(1 -12),        b= 9185, t=[]
-    'Time to DNA': float,               # r=(0 - 4),        b=48724, t=[]
-    'HysterectomyAge': int,             # r=(18-72),        b=44810, t=['Data not known']
-    'OvarianCancerAge': int,            # r=(23-75),        b=57834, t=[-99]
-    'OvarianCancerAge2': int,           # r=(23-75),        b=57832, t=[-99]
-    'AgeAtMenarche': int,               # r=(5 -75),        b=   15, t=[-99, 0]
-    'AgeAtFirstPregnancy': int,         # r=(14-49),        b=    9, t=[-99, 0]
-    'FFTP to age consent': float,       # r=(1 -39),        b=55717, t=[]
-    'agefftp grp': int,                 # r=(0 - 5),        b=    1, t=[-99]
-    'ChildrenNum': int,                 # r=(0 -15),        b=    1, t=[-99]
-    'paritygrp': int,                   # r=(0 - 4),        b=    1, t=[]
-    'OC\'EC from entry': float,         # r=(-32-7),        b=57738, t=[]
-    'mss fh': int,                      # r=(0 -47),        b=57057, t=[death, FH, new]
-    'Density Residual': float,          # r=(0 - 4),        b= 1147, t=[]
-    'InitialTyrerCuzick': float,        # r=(1 -26),        b=    1, t=[]
-    'TC8 only': float,                  # r=(1 -20),        b=    1, t=[]
-    'TC8no wt': float,                  # r=(1 -23),        b=    1, t=[]
-    'v8DR': float,                      # r=(0 -28),        b=    1, t=[]
-    '10 yr avg': float,                 # r=(0 -30),        b=    1, t=[]
-    'TC8 grp': int,                     # r=(1 - 6),        b=    1, t=[]
-    'TCDR': float,                      # r=(0 -39),        b=    1, t=[#VALUE!, #N/A]
-    'TCDRgrp': int,                     # r=(1 - 5),        b= 1173, t=[]
-    'TC8DRgrp2': int,                   # r=(1 - 6),        b=    2, t=[]
-    'DR': float,                        # r=(0 - 3),        b=    1, t=[]
-    'TC8VpDR 10 yr avg': float,         # r=(0 -30),        b=    1, t=[]
-    'DR Volpara': float,                # r=(0 - 3),        b=    1, t=[]
-    'BMI': float,                       # r=(8 -75),        b=    3, t=[0]
-    'BMI grp': int,                     # r=(1 - 4),        b= 3939, t=[]
-    'AgeAtConsent': float,              # r=(46-84),        b=    1, t=[]
-    'age grp': int,                     # r=(1 - 4),        b=    1, t=[]
-    'age grp60': int,                   # r=(1 - 2),        b=    1, t=[]
-    'time from 20': float,              # r=(26-64),        b=    1, t=[]
-    'Age first mammo': float,           # r=(46-84),        b=    1, t=[]
-    'Height_ft': int,                   # r=(4 - 8),        b=    6, t=[-99, 0]
-    'Height_in': int,                   # r=(0 -12),        b=    6, t=[-99, 13]
-    'Heightm': float,                   # r=(1 - 3),        b=    1, t=[-99, 0]
-    'Height group': int,                # r=(1 - 3),        b= 1166, t=[]
-    'Weight_st': int,                   # r=(5 -28),        b=    9, t=[-99, 0]
-    'Weight_lb': int,                   # r=(5 -28),        b=    9, t=[-99, 0?]
-    'WeightKg': float,                  # r=(35-202),       b=    3, t=[-99, 0]
-    'WeightAt20_st': int,               # r=(4 -59),        b= 7832, t=[Data not known]
-    'WeightAt20_lb': int,               # r=(0 -110),       b=18716, t=[Data not known]
-    'WeightAt20_kg': int,               # r=(25-375),       b= 6285, t=[Data not known]
-    'Wtkg20from stlb': float,           # r=(25-375),       b= 7836, t=[0]
-    'ExerciseHoursPerMonth': int,       # r=(0 -120),       b=15658, t=[Data not known]
-    'ExerciseMinsPerMonth': int,        # r=(0 -130),       b=29649, t=[Data not known]
-    'Exercise Grp': int,                # r=(0 - 4),        b=    1, t=[99]
-    'AlcoholUnitsPerWeek': int,         # r=(0 -1750),      b=18324, t=[Data not known]
-    'alc grp': int,                     # r=(0 - 5),        b=  853, t=[Data not known]
-    'alc grp2': int,                    # r=(0 - 5),        b=  853, t=[]
-    'Wt gain': float,                   # r=(-4- 2),        b= 7865, t=[]
-    'Wtgaingrp': int,                   # r=(1 - 6),        b= 7865, t=[]
-    'Wtgaingrp2': int,                  # r=(1 - 6),        b= 7865, t=[]
-    'wt gain per year': float,          # r=(-0- 0),        b= 7865, t=[#VALUE!]
-    'OnHRTYears': int,                  # r=(0 -55),        b=  189, t=[-99, 0?]
-    'OnHRTMonths': int,                 # r=(0 -60),        b=    7, t=[-99, 0?]
-    'age at HRT': float,                # r=(7 -69),        b=47098, t=[]
-    'HRT 10+post 50': float,            # r=(-3-10),        b=39855, t=[before, few, inter, yes]
-    'HRT Last Used (Years)': int,       # r=(0 -70),        b=  108, t=[-99, 0?]
-    'HRT Last Used (Months)': int,      # r=(0 -18),        b=   39, t=[-99, 0?]
-    'StatinsYears': int,                # r=(0 -65),        b=52539, t=[Data not known]
-    'StatinsMonths': int,               # r=(0 -30),        b=54351, t=[Data not known]
-    'statins grp': int,                 # r=(0 - 3),        b=    1, t=[9, 0?]
-    'age at death': float,              # r=(48-88),        b=55107, t=[]
-    'age at censor to 70': float,       # r=(46-72),        b=    1, t=[]
-    'follow up to 70': float,           # r=(-14-13),       b=    1, t=[]
-    'Expected TC8nowt': float,          # r=(0-0.16),       b=    1, t=[]
-    'fu to death': float,               # r=(0 -12),        b=    1, t=[]
-    'Years of follow up': float,        # r=(0 -13),        b=    1, t=[]
-    'Expected TC8DR': float,            # r=(0-0.33),       b=    1, t=[]
-    'expected TC8': float,              # r=(0-0.21),       b=    1, t=[]
-    'Expected TC6': float,              # r=(0-0.23),       b=    1, t=[]
-    'age bc': float,                    # r=(46-83),        b=55754, t=[]
-    'age bc grp': int,                  # r=(1 - 3),        b=56422, t=[]
-    'age BCgrp2': int,                  # r=(1 - 4),        b=55831, t=[]
-    'size': float,                      # r=(3-120),        b=57903, t=[it's all in mm and some have multiple tumours]
-    'grade invasive': int,              # r=(0 -32),        b=56157, t=[lots of text entry and maybe grade/breast]
-    'ER score': int,                    # r=(0 - 8),        b=55797, t=[lots of text entry and maybe score/breast]
-    'PR score': int,                    # r=(0 - 8),        b=55797, t=[lots of text entry and maybe score/breast]
-    'MSS family': int,                  # r=(0 - 47),       b=56575, t=[]
-    'Manchester score proband': int,    # r=(2 - 6),        b=56377, t=[]
-    'path grade': int,                  # r=(-2 - 2),       b=56697, t=[]
-    'Hormonal ER': int,                 # r=(-3 - 4),       b=56445, t=[]
-    'HER2': int,                        # r=(-6 - 3),       b=56726, t=[]
-    'MSS personal': int,                # r=(-7 -12),       b=56377, t=[]
-    'prev BC score': int,               # r=(2 -13),        b=56997, t=[]
-    'total MSS': int,                   # r=(-5 -48),       b=56379, t=[]
-    'VASCombinedAvDensity': float,      # r=(1 -97),        b= 6418, t=[-99, -43.75]
-    'age previous bc': float,           # r=(24-77),        b=56999, t=[-43.1594798083504]
-    'ageprBC grp': int,                 # r=(1 - 5),        b=56999, t=[]
-    'VBD%': float,                      # r=(1 -35),        b=12939, t=[]
-    'FGV cm3': float,                   # r=(4-349),        b=12939, t=[]
-    'age menopauuse': int,              # r=(20-65),        b=   49, t=[-99, 0]
+    'Age FDR OC': int,                                  # r=(12-94),        b=56771, t=['Data not known']
+    'age first prescribed': float,                      # r=(39-75),        b=57587, t=[]
+    'BMI 20': float,                                    # r=(8 -94),        b= 9183, t=[]
+    'BMI 202': float,                                   # r=(8 -66),        b= 7260, t=[0, inaccurate, #REF!]
+    'BMI20grp': int,                                    # r=(1 - 4),        b= 9183, t=[]
+    'BMI20grp2': float,                                 # r=(1 - 4),        b= 7718, t=[inaccurate]
+    'BMI20Grp3': float,                                 # r=(1 -12),        b= 9185, t=[]
+    'Time to DNA': float,                               # r=(0 - 4),        b=48724, t=[]
+    'HysterectomyAge': int,                             # r=(18-72),        b=44810, t=['Data not known']
+    'OvarianCancerAge': int,                            # r=(23-75),        b=57834, t=[-99]
+    'OvarianCancerAge2': int,                           # r=(23-75),        b=57832, t=[-99]
+    'AgeAtMenarche': int,                               # r=(5 -75),        b=   15, t=[-99, 0]
+    'AgeAtFirstPregnancy': int,                         # r=(14-49),        b=    9, t=[-99, 0]
+    'FFTP to age consent': float,                       # r=(1 -39),        b=55717, t=[]
+    'agefftp grp': int,                                 # r=(0 - 5),        b=    1, t=[-99]
+    'ChildrenNum': int,                                 # r=(0 -15),        b=    1, t=[-99]
+    'paritygrp': int,                                   # r=(0 - 4),        b=    1, t=[]
+    'OC\'EC from entry': float,                         # r=(-32-7),        b=57738, t=[]
+    'mss fh': int,                                      # r=(0 -47),        b=57057, t=[death, FH, new]
+    'Density Residual': float,                          # r=(0 - 4),        b= 1147, t=[]
+    'InitialTyrerCuzick': float,                        # r=(1 -26),        b=    1, t=[]
+    'TC8 only': float,                                  # r=(1 -20),        b=    1, t=[]
+    'TC8no wt': float,                                  # r=(1 -23),        b=    1, t=[]
+    'v8DR': float,                                      # r=(0 -28),        b=    1, t=[]
+    '10 yr avg': float,                                 # r=(0 -30),        b=    1, t=[]
+    'TC8 grp': int,                                     # r=(1 - 6),        b=    1, t=[]
+    'TCDR': float,                                      # r=(0 -39),        b=    1, t=[#VALUE!, #N/A]
+    'TCDRgrp': int,                                     # r=(1 - 5),        b= 1173, t=[]
+    'TC8DRgrp2': int,                                   # r=(1 - 6),        b=    2, t=[]
+    'DR': float,                                        # r=(0 - 3),        b=    1, t=[]
+    'TC8VpDR 10 yr avg': float,                         # r=(0 -30),        b=    1, t=[]
+    'DR Volpara': float,                                # r=(0 - 3),        b=    1, t=[]
+    'BMI': float,                                       # r=(8 -75),        b=    3, t=[0]
+    'BMI grp': int,                                     # r=(1 - 4),        b= 3939, t=[]
+    'AgeAtConsent': float,                              # r=(46-84),        b=    1, t=[]
+    'age grp': int,                                     # r=(1 - 4),        b=    1, t=[]
+    'age grp60': int,                                   # r=(1 - 2),        b=    1, t=[]
+    'time from 20': float,                              # r=(26-64),        b=    1, t=[]
+    'Age first mammo': float,                           # r=(46-84),        b=    1, t=[]
+    'Height_ft': int,                                   # r=(4 - 8),        b=    6, t=[-99, 0]
+    'Height_in': int,                                   # r=(0 -12),        b=    6, t=[-99, 13]
+    'Heightm': float,                                   # r=(1 - 3),        b=    1, t=[-99, 0]
+    'Height group': int,                                # r=(1 - 3),        b= 1166, t=[]
+    'Weight_st': int,                                   # r=(5 -28),        b=    9, t=[-99, 0]
+    'Weight_lb': int,                                   # r=(5 -28),        b=    9, t=[-99, 0?]
+    'WeightKg': float,                                  # r=(35-202),       b=    3, t=[-99, 0]
+    'WeightAt20_st': int,                               # r=(4 -59),        b= 7832, t=[Data not known]
+    'WeightAt20_lb': int,                               # r=(0 -110),       b=18716, t=[Data not known]
+    'WeightAt20_kg': int,                               # r=(25-375),       b= 6285, t=[Data not known]
+    'Wtkg20from stlb': float,                           # r=(25-375),       b= 7836, t=[0]
+    'ExerciseHoursPerMonth': int,                       # r=(0 -120),       b=15658, t=[Data not known]
+    'ExerciseMinsPerMonth': int,                        # r=(0 -130),       b=29649, t=[Data not known]
+    'Exercise Grp': int,                                # r=(0 - 4),        b=    1, t=[99]
+    'AlcoholUnitsPerWeek': int,                         # r=(0 -1750),      b=18324, t=[Data not known]
+    'alc grp': int,                                     # r=(0 - 5),        b=  853, t=[Data not known]
+    'alc grp2': int,                                    # r=(0 - 5),        b=  853, t=[]
+    'Wt gain': float,                                   # r=(-4- 2),        b= 7865, t=[]
+    'Wtgaingrp': int,                                   # r=(1 - 6),        b= 7865, t=[]
+    'Wtgaingrp2': int,                                  # r=(1 - 6),        b= 7865, t=[]
+    'wt gain per year': float,                          # r=(-0- 0),        b= 7865, t=[#VALUE!]
+    'OnHRTYears': int,                                  # r=(0 -55),        b=  189, t=[-99, 0?]
+    'OnHRTMonths': int,                                 # r=(0 -60),        b=    7, t=[-99, 0?]
+    'age at HRT': float,                                # r=(7 -69),        b=47098, t=[]
+    'HRT 10+post 50': float,                            # r=(-3-10),        b=39855, t=[before, few, inter, yes]
+    'HRT Last Used (Years)': int,                       # r=(0 -70),        b=  108, t=[-99, 0?]
+    'HRT Last Used (Months)': int,                      # r=(0 -18),        b=   39, t=[-99, 0?]
+    'StatinsYears': int,                                # r=(0 -65),        b=52539, t=[Data not known]
+    'StatinsMonths': int,                               # r=(0 -30),        b=54351, t=[Data not known]
+    'statins grp': int,                                 # r=(0 - 3),        b=    1, t=[9, 0?]
+    'age at death': float,                              # r=(48-88),        b=55107, t=[]
+    'age at censor to 70': float,                       # r=(46-72),        b=    1, t=[]
+    'follow up to 70': float,                           # r=(-14-13),       b=    1, t=[]
+    'Expected TC8nowt': float,                          # r=(0-0.16),       b=    1, t=[]
+    'fu to death': float,                               # r=(0 -12),        b=    1, t=[]
+    'Years of follow up': float,                        # r=(0 -13),        b=    1, t=[]
+    'Expected TC8DR': float,                            # r=(0-0.33),       b=    1, t=[]
+    'expected TC8': float,                              # r=(0-0.21),       b=    1, t=[]
+    'Expected TC6': float,                              # r=(0-0.23),       b=    1, t=[]
+    'age bc': float,                                    # r=(46-83),        b=55754, t=[]
+    'age bc grp': int,                                  # r=(1 - 3),        b=56422, t=[]
+    'age BCgrp2': int,                                  # r=(1 - 4),        b=55831, t=[]
+    'size': float,                                      # r=(3-120),        b=57903, t=[it's all in mm and some have multiple tumours]
+    'grade invasive': int,                              # r=(0 -32),        b=56157, t=[lots of text entry and maybe grade/breast]
+    'ER score': int,                                    # r=(0 - 8),        b=55797, t=[lots of text entry and maybe score/breast]
+    'PR score': int,                                    # r=(0 - 8),        b=55797, t=[lots of text entry and maybe score/breast]
+    'MSS family': int,                                  # r=(0 - 47),       b=56575, t=[]
+    'Manchester score proband': int,                    # r=(2 - 6),        b=56377, t=[]
+    'path grade': int,                                  # r=(-2 - 2),       b=56697, t=[]
+    'Hormonal ER': int,                                 # r=(-3 - 4),       b=56445, t=[]
+    'HER2': int,                                        # r=(-6 - 3),       b=56726, t=[]
+    'MSS personal': int,                                # r=(-7 -12),       b=56377, t=[]
+    'prev BC score': int,                               # r=(2 -13),        b=56997, t=[]
+    'total MSS': int,                                   # r=(-5 -48),       b=56379, t=[]
+    'VASCombinedAvDensity': float,                      # r=(1 -97),        b= 6418, t=[-99, -43.75]
+    'age previous bc': float,                           # r=(24-77),        b=56999, t=[-43.1594798083504]
+    'ageprBC grp': int,                                 # r=(1 - 5),        b=56999, t=[]
+    'VBD%': float,                                      # r=(1 -35),        b=12939, t=[]
+    'FGV cm3': float,                                   # r=(4-349),        b=12939, t=[]
+    'age menopauuse': int,                              # r=(20-65),        b=   49, t=[-99, 0]
+    'c_Invasive tumour size (mm)': float,               # r=(0-160),        b=  590, t=[]
+    'c_Whole tumour  or CIS only SIZE (mm)': float,     # r=(0-160),        b=  296, t=[]
+    'c_LN-2': int,                                      # r=(0-3),          b=  426, t=[n/a, Not reported]
+    'c_ER score': int,                                  # r=(0-8),          b=   72, t=[num/num, and some text]
+    'c_PR score': int,                                  # r=(0-8),          b=   77, t=[num/num, and some text]
+    'c_Invasive tumour size (mm)2': int,                # r=(0-110),        b= 1858, t=[]
+    'c_Whole tumour  or CIS only SIZE (mm)2': float,    # r=(0-120),        b= 1850, t=[]
+    'c_ER score2': int,                                 # r=(0-8),          b= 1844, t=[two different 8s?]
+    'c_PR score2': int,                                 # r=(0-8),          b= 1843, t=[num/num]
 }
 
 function_mapping = {
@@ -782,14 +1321,30 @@ function_mapping = {
     'Date last follow or death': date_to_number,        # r=(03/04/2010-18/01/2022), b=    1, t=[]
     'DateOfPreviousDiagnosis': date_to_number,          # r=(01/11/1975-24/04/2013), b=56999, t=[]
     'HRTName': too_many_discrete,                       # r=(1 HRT, 2427 Data not known), b=48307, t=[666 different HRT]
+    'c_Study entry date': broken_dates,                 # r=(21/10/2009-18/01/2015), b=    0, t=[mixed format]
+    'c_Date of prev cancer': broken_dates,              # r=(  /  /1987-29/11/2010), b=  812, t=[years, date, words]
+    'c_Diagnosis date from SCR': broken_dates,          # r=(15/11/2009-06/06/2022), b=    0, t=[mixed format]
+}
+
+ignore_column = {
+    'c_PATH': extract_subtypes_from_path,               # a bunch of labels with DCIS, LCIS, etc which are broken up
 }
 
 
 if not csv_processed_previously:
+    # Read raw CSV from the same folder as script/exe
+    # raw_csv_path = resource_path(csv_name)
+    # csv_file_pointer = raw_csv_path
+    # csv_data = pd.read_csv(csv_file_pointer, sep=',')
+    # raw_cancers_path = resource_path(cancers_name)
+    # cancers_file_pointer = raw_cancers_path
+    # cancers_data = pd.read_csv(cancers_file_pointer, sep=',')
+    end_column_of_cancers = 'c_PATH2'
+
     proCeSsVed = pd.DataFrame(columns=csv_data.columns)
     
     # map csv entries to pre-specified entries
-    for col in proCeSsVed.columns:
+    for col in tqdm(proCeSsVed.columns):
         print("Currently processing column:", col)
         if col in function_mapping:
             proCeSsVed[col] = csv_data[col].apply(function_mapping[col])
@@ -806,6 +1361,33 @@ if not csv_processed_previously:
         else:
             print(f"\n\t Col:{col} does not exist in mapping\n")
             proCeSsVed[col] = csv_data[col]
+
+    proCeSsVed_cancer = pd.DataFrame(columns='c_'+cancers_data.columns)
+    # map csv entries to pre-specified entries
+    for col in cancers_data.columns:
+        print("Currently processing column:", col)
+        if 'c_'+col == end_column_of_cancers:
+            break
+        if 'c_'+col in ignore_column:
+            proCeSsVed_cancer['c_'+col] = cancers_data[col]
+            continue
+        if 'c_'+col in function_mapping:
+            proCeSsVed_cancer['c_'+col] = cancers_data[col].apply(function_mapping['c_'+col])
+        elif 'c_'+col in string_mapping:
+            proCeSsVed_cancer['c_'+col] = cancers_data[col].apply(
+                lambda v: apply_map(v, 'c_'+col)
+            )
+        elif 'c_'+col in numerical_columns:
+            proCeSsVed_cancer['c_'+col] = cancers_data[col].apply(
+                lambda v: parse_numeric_max(v, numerical_columns['c_'+col])
+            )
+        else:
+            print(f"\n\t Col:{'c_'+col} does not exist in mapping\n")
+            proCeSsVed_cancer['c_'+col] = cancers_data[col]
+
+    split_PATH_columns = extract_subtypes_from_path(proCeSsVed_cancer['c_PATH'])
+    for column in split_PATH_columns:
+        proCeSsVed_cancer[column] = split_PATH_columns[column]
 
     # Create new columns
     proCeSsVed["Subtype"] = proCeSsVed.apply(
@@ -853,18 +1435,30 @@ if not csv_processed_previously:
         "Blank",
         axis=1
     )
+
     # todo
     # **space to add VAS readings from MAI-VAS and MADAM
     # space to add other csvs which contain things like Ki-67
     # click a patient
-    # ***One column plot at once
     # socioeconomic score (from postcode (etc?))
 
+    # Save processed CSV next to script/exe
+    processed_path = resource_path(save_name)
+    combined_data = pd.merge(
+        proCeSsVed,
+        proCeSsVed_cancer,
+        left_on="ProcID",
+        right_on="c_Identifier",
+        how="outer"   # inner, left, right, outer
+    )
+    combined_data.to_csv(processed_path, index=False)
 
     # Save to new CSV
-    proCeSsVed.to_csv(os.path.join(save_dir, save_name), index=False)
+    combined_data.to_csv(os.path.join(save_dir, save_name), index=False)
 else:
-    proCeSsVed = pd.read_csv(os.path.join(save_dir, save_name), sep=',')
+    # Just load the preprocessed CSV
+    processed_path = resource_path(save_name)
+    combined_data = pd.read_csv(processed_path, sep=',')
 
 '''
 Data types in the csv:
@@ -952,7 +1546,16 @@ class DataExplorer(tk.Tk):
         ctrl = ttk.Frame(self, padding=10)
         ctrl.pack(side="top", fill="x")
 
-        x_frame = ttk.Frame(ctrl)
+        # Two horizontal rows inside ctrl
+        top_row = ttk.Frame(ctrl)
+        top_row.pack(side="top", fill="x")
+
+        bottom_row = ttk.Frame(ctrl)
+        bottom_row.pack(side="top", fill="x", pady=(5, 0))
+
+        # --- Top control panel ------------------------------------------------
+        # X side
+        x_frame = ttk.Frame(top_row)
         x_frame.pack(side="left", padx=(0, 20))
 
         ttk.Label(x_frame, text="X column:").pack(side="top", anchor="w")
@@ -968,10 +1571,9 @@ class DataExplorer(tk.Tk):
             state="readonly", width=30
         )
         self.x_box.pack(side="top", fill="x")
-        # self.x_box.bind("<<ComboboxSelected>>", lambda e: self.update_plot())
 
-        # --- Y column with search ------------------------------------------------
-        y_frame = ttk.Frame(ctrl)
+        # Y side
+        y_frame = ttk.Frame(top_row)
         y_frame.pack(side="left", padx=(0, 20))
 
         ttk.Label(y_frame, text="Y column:").pack(side="top", anchor="w")
@@ -987,48 +1589,46 @@ class DataExplorer(tk.Tk):
             state="readonly", width=30
         )
         self.y_box.pack(side="top", fill="x")
-        # self.y_box.bind("<<ComboboxSelected>>", lambda e: self.update_plot())
 
-        # Swap button
-        self.swap_btn = ttk.Button(ctrl, text="Swap X/Y", command=self.swap_axes)
+        # Swap + Update in the top row
+        self.swap_btn = ttk.Button(top_row, text="Swap X/Y", command=self.swap_axes)
         self.swap_btn.pack(side="left", padx=(0, 10))
 
-        self.update_btn = ttk.Button(ctrl, text="Update plot", command=self.update_plot)
+        self.update_btn = ttk.Button(top_row, text="Update plot", command=self.update_plot)
         self.update_btn.pack(side="left", padx=(0, 20))
 
-        # --- Outlier filtering controls (per axis) ---------------------------
-        # X outlier controls
+        # X outlier controls (top row)
         self.x_use_outlier_filter = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            ctrl,
+            top_row,
             text="Filter X outliers",
             variable=self.x_use_outlier_filter,
             command=self.update_plot,
         ).pack(side="left", padx=(10, 2))
 
-        ttk.Label(ctrl, text="X Min:").pack(side="left")
-        self.x_min_entry = ttk.Entry(ctrl, width=6)
+        ttk.Label(top_row, text="X Min:").pack(side="left")
+        self.x_min_entry = ttk.Entry(top_row, width=6)
         self.x_min_entry.pack(side="left")
 
-        ttk.Label(ctrl, text="X Max:").pack(side="left")
-        self.x_max_entry = ttk.Entry(ctrl, width=6)
+        ttk.Label(top_row, text="X Max:").pack(side="left")
+        self.x_max_entry = ttk.Entry(top_row, width=6)
         self.x_max_entry.pack(side="left", padx=(0, 10))
 
         # Y outlier controls
         self.y_use_outlier_filter = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            ctrl,
+            top_row,
             text="Filter Y outliers",
             variable=self.y_use_outlier_filter,
             command=self.update_plot,
         ).pack(side="left", padx=(10, 2))
 
-        ttk.Label(ctrl, text="Y Min:").pack(side="left")
-        self.y_min_entry = ttk.Entry(ctrl, width=6)
+        ttk.Label(top_row, text="Y Min:").pack(side="left")
+        self.y_min_entry = ttk.Entry(top_row, width=6)
         self.y_min_entry.pack(side="left")
 
-        ttk.Label(ctrl, text="Y Max:").pack(side="left")
-        self.y_max_entry = ttk.Entry(ctrl, width=6)
+        ttk.Label(top_row, text="Y Max:").pack(side="left")
+        self.y_max_entry = ttk.Entry(top_row, width=6)
         self.y_max_entry.pack(side="left", padx=(0, 10))
 
         # --- Blank handling ---------------------------------------------------
@@ -1038,7 +1638,7 @@ class DataExplorer(tk.Tk):
         # --- CAT×CAT normalisation mode --------------------------------------
         self.cat_norm_mode = tk.StringVar(value="none")  # 'none', 'row', 'col', 'total'
 
-        norm_frame = ttk.Frame(ctrl)
+        norm_frame = ttk.Frame(bottom_row)
         norm_frame.pack(side="left", padx=(10, 2))
 
         ttk.Label(norm_frame, text="CAT×CAT:").pack(side="left")
@@ -1066,15 +1666,41 @@ class DataExplorer(tk.Tk):
             command=self.update_plot,
         ).pack(side="left")
 
+        # --- Plot mode: 2D vs univariate --------------------------------------
+        self.plot_mode = tk.StringVar(value="xy")  # 'xy', 'x', 'y'
+
+        mode_frame = ttk.Frame(bottom_row)
+        mode_frame.pack(side="left", padx=(10, 2))
+
+        ttk.Label(mode_frame, text="Plot mode:").pack(side="left")
+        ttk.Radiobutton(
+            mode_frame, text="X vs Y",
+            value="xy", variable=self.plot_mode,
+            command=self.update_plot,
+        ).pack(side="left")
+
+        ttk.Radiobutton(
+            mode_frame, text="X only",
+            value="x", variable=self.plot_mode,
+            command=self.update_plot,
+        ).pack(side="left")
+
+        ttk.Radiobutton(
+            mode_frame, text="Y only",
+            value="y", variable=self.plot_mode,
+            command=self.update_plot,
+        ).pack(side="left")
+
+        # Blank filters on bottom row too
         ttk.Checkbutton(
-            ctrl,
+            bottom_row,
             text="Exclude 'Blank' in X",
             variable=self.x_exclude_blank,
             command=self.update_plot,
         ).pack(side="left")
 
         ttk.Checkbutton(
-            ctrl,
+            bottom_row,
             text="Exclude 'Blank' in Y",
             variable=self.y_exclude_blank,
             command=self.update_plot,
@@ -1186,24 +1812,153 @@ class DataExplorer(tk.Tk):
     def update_plot(self):
         x_col = self.x_var.get()
         y_col = self.y_var.get()
+        mode = self.plot_mode.get()
 
-        # ✅ Guard: if search left one side blank / invalid, don't try to plot
-        if x_col not in self.df.columns or y_col not in self.df.columns:
-            self.fig.clear()
-            self.ax = self.fig.add_subplot(111)
-            self.ax.text(
-                0.5, 0.5,
-                "Select valid X and Y columns,\nthen press 'Update plot'",
-                ha="center", va="center"
-            )
-            self.ax.set_axis_off()
-            self.canvas.draw()
-            self.stats_text.delete("1.0", tk.END)
-            self.stats_text.insert("1.0", "No valid columns selected.")
-            return
+        # ✅ Guard: if requested column(s) invalid, don't try to plot
+        if mode == "xy":
+            if x_col not in self.df.columns or y_col not in self.df.columns:
+                self.fig.clear()
+                self.ax = self.fig.add_subplot(111)
+                self.ax.text(
+                    0.5, 0.5,
+                    "Select valid X and Y columns,\nthen press 'Update plot'",
+                    ha="center", va="center"
+                )
+                self.ax.set_axis_off()
+                self.canvas.draw()
+                self.stats_text.delete("1.0", tk.END)
+                self.stats_text.insert("1.0", "No valid columns selected.")
+                return
+        else:  # univariate mode
+            single_col = x_col if mode == "x" else y_col
+            if single_col not in self.df.columns:
+                self.fig.clear()
+                self.ax = self.fig.add_subplot(111)
+                self.ax.text(
+                    0.5, 0.5,
+                    "Select a valid column,\nthen press 'Update plot'",
+                    ha="center", va="center"
+                )
+                self.ax.set_axis_off()
+                self.canvas.draw()
+                self.stats_text.delete("1.0", tk.END)
+                self.stats_text.insert("1.0", "No valid column selected.")
+                return
 
         x_full = self.df[x_col]
         y_full = self.df[y_col]
+
+        # --- Univariate mode: X only or Y only -------------------------------
+        if mode in ("x", "y"):
+            col_name = x_col if mode == "x" else y_col
+            s_full = self.df[col_name]
+            t = get_type(col_name)
+
+            # build a mask only for this column
+            mask = pd.Series(True, index=self.df.index)
+
+            # Blank handling
+            if mode == "x" and self.x_exclude_blank.get():
+                mask &= (s_full != "Blank")
+            if mode == "y" and self.y_exclude_blank.get():
+                mask &= (s_full != "Blank")
+
+            # Outlier handling
+            if mode == "x":
+                mask &= self.filter_numeric(
+                    s_full, t,
+                    self.x_use_outlier_filter, self.x_min_entry, self.x_max_entry
+                )
+            else:
+                mask &= self.filter_numeric(
+                    s_full, t,
+                    self.y_use_outlier_filter, self.y_min_entry, self.y_max_entry
+                )
+
+            s = s_full[mask]
+
+            # reset figure
+            self.fig.clear()
+            self.ax = self.fig.add_subplot(111)
+            if hasattr(self, "cbar") and self.cbar is not None:
+                try:
+                    self.cbar.remove()
+                except Exception:
+                    pass
+                self.cbar = None
+
+            # numeric-like → histogram
+            if t in ["CONT", "ORD", "DATE"]:
+                vals = pd.to_numeric(s, errors="coerce").dropna()
+                if vals.empty:
+                    self.ax.text(0.5, 0.5, "No numeric data", ha="center", va="center")
+                    self.ax.set_axis_off()
+                else:
+                    self.ax.hist(vals, bins=30)
+                    self.ax.set_xlabel(col_name)
+                    self.ax.set_ylabel("Count")
+
+                    if t == "DATE":
+                        xticks = self.ax.get_xticks()
+                        self.ax.set_xticks(xticks)
+                        self.ax.set_xticklabels(
+                            [
+                                number_to_date(int(round(v))) if not np.isnan(v) else ""
+                                for v in xticks
+                            ],
+                            rotation=45,
+                            ha="right",
+                        )
+
+            # categorical → barplot
+            elif t == "CAT":
+                counts = s.value_counts().sort_index()
+                if counts.empty:
+                    self.ax.text(0.5, 0.5, "No data", ha="center", va="center")
+                    self.ax.set_axis_off()
+                else:
+                    positions = np.arange(len(counts))
+                    self.ax.bar(positions, counts.values)
+                    self.ax.set_xticks(positions)
+                    self.ax.set_xticklabels(
+                        [f"{cat}\n(n={n})" for cat, n in counts.items()],
+                        rotation=45,
+                        ha="right",
+                    )
+                    self.ax.set_ylabel("Count")
+                    self.ax.set_xlabel(col_name)
+
+            else:
+                # fallback
+                self.ax.text(0.5, 0.5, f"Unsupported type: {t}",
+                             ha="center", va="center")
+                self.ax.set_axis_off()
+
+            self.fig.tight_layout()
+            self.canvas.draw()
+
+            # --- simple univariate stats -------------------------------------
+            self.stats_text.delete("1.0", tk.END)
+            if t in ["CONT", "ORD", "DATE"]:
+                vals = pd.to_numeric(s, errors="coerce").dropna()
+                if vals.empty:
+                    self.stats_text.insert("1.0", "No numeric data.")
+                else:
+                    desc = vals.describe()
+                    for k in ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]:
+                        self.stats_text.insert(tk.END, f"{k}: {desc[k]:.4g}\n")
+            elif t == "CAT":
+                counts = s.value_counts()
+                if counts.empty:
+                    self.stats_text.insert("1.0", "No data.")
+                else:
+                    self.stats_text.insert("1.0", f"Unique categories: {len(counts)}\n\n")
+                    for cat, n in counts.items():
+                        self.stats_text.insert(tk.END, f"{cat}: {n}\n")
+            else:
+                self.stats_text.insert("1.0", "No univariate stats implemented for this type.")
+
+            return  # 🔚 don't run the 2D logic below
 
         # build a mask for excluding "Blank"
         mask = pd.Series(True, index=self.df.index)
@@ -1549,7 +2304,7 @@ class DataExplorer(tk.Tk):
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     matplotlib.use("TkAgg")  # optional, usually default
-    app = DataExplorer(proCeSsVed)
+    app = DataExplorer(combined_data)
     app.mainloop()
 
 print("Done")
