@@ -43,7 +43,7 @@ sns.set(style='dark')
 
 print("Reading data")
 
-raw = True  # Raw or processed data
+raw = False  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
 
 process_types = ['log']#, 'histo', 'clahe']  # only relevant to raw data
@@ -73,7 +73,7 @@ else:
         image_directory = '/mnt/bmh01-rds/assure/PROCAS_ALL_PROCESSED'
     else:
         # image_directory = 'Z:/PROCAS_ALL_PROCESSED'
-        image_directory = 'D:/priors_data/raw'
+        image_directory = 'D:/priors_data/processed'
     image_type_id = 'ASSURE_PROCESSED_ANON_ID'
     save_name += '_processed'
 
@@ -293,8 +293,15 @@ def preprocess_and_zip_all_images(parent_directory):
     print("Collecting directories")
     for root, dirs, _ in tqdm(os.walk(parent_directory)):
         for d in dirs:
-            dir_path = os.path.join(root, d)
-            all_dirs.append(dir_path)
+            if d[-5:] == '_anon':
+                print("anon folder found")
+                for root2, dirs, _ in os.walk(os.path.join(root, d)):
+                    for d in dirs:
+                        dir_path = os.path.join(root2, d)
+                        all_dirs.append(dir_path)
+            else:
+                dir_path = os.path.join(root, d)
+                all_dirs.append(dir_path)
 
     patient_dirs = [d for d in all_dirs if int(d[-5:]) in np.array(cancer_data[image_type_id], dtype=int)]
     patient_dirs.sort()  # Ensuring a deterministic order
