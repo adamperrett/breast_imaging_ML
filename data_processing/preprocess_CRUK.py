@@ -295,10 +295,10 @@ def preprocess_and_zip_all_images(parent_directory):
         for d in dirs:
             if d[-5:] == '_anon':
                 print("anon folder found")
-                for root2, dirs, _ in os.walk(os.path.join(root, d)):
-                    for d in dirs:
-                        dir_path = os.path.join(root2, d)
-                        all_dirs.append(dir_path)
+                # for root2, dirs2, _ in os.walk(os.path.join(root, d)):
+                #     for d2 in dirs2:
+                #         dir_path = os.path.join(root2, d2)
+                #         all_dirs.append(dir_path)
             else:
                 dir_path = os.path.join(root, d)
                 all_dirs.append(dir_path)
