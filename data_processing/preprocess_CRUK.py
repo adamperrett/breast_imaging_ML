@@ -45,19 +45,10 @@ print("Reading data")
 
 raw = True  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
-by_patient = False  # DEPRICATED: Put all patient images into a single data instance
-average_score = False  # Do you want per image scores or average over all views
-clean_with_pvas = False  # Will keep only patients in the clean pvas datasheet
-remove_priors = True  # Will the dataset filter out priors
-use_priors = True
-if use_priors:
-    remove_priors = False
-
-vas_or_vbd = 'vas'
 
 process_types = ['log']#, 'histo', 'clahe']  # only relevant to raw data
 
-csf = False
+csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
