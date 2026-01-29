@@ -1,0 +1,21 @@
+#!/bin/bash --login
+
+#SBATCH -p gpuA              # A100 (80GB) GPUs  [up to 12 CPU cores per GPU permitted]
+### Required flags
+#SBATCH -G 1                 # (or --gpus=N) Number of GPUs
+#SBATCH -t 4-0               # Wallclock timelimit (1-0 is one day, 4-0 is max permitted)
+### Optional flags
+#SBATCH -n 4
+
+
+echo "Job is using $SLURM_GPUS GPU(s) with ID(s) $CUDA_VISIBLE_DEVICES and $SLURM_NTASKS CPU core(s)"
+
+module purge
+module load apps/binapps/anaconda3/2020.07
+module load tools/env/proxy
+
+source activate venv
+
+cd /mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training
+
+python3 optuna_CRUK.py
