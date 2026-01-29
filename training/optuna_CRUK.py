@@ -54,11 +54,12 @@ def CRUK_training(trial):
     op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
     batch_size = trial.suggest_int('batch_size', 2, 17)
     dropout = trial.suggest_float('dropout', 0, 0.8)
+    raw_or_processed = trial.suggest_categorical('raw_or_processed', ['raw', 'processed'])
     # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
-    resnet_size = 18 #trial.suggest_categorical('resent_size', [18, 34, 50])
+    resnet_size = trial.suggest_categorical('resent_size', [18, 34, 50])
     pooling_type = trial.suggest_categorical('pooling_type', ['mean', 'max', 'attention'])
     pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
-    include_vas = trial.suggest_categorical('include_vas', [0, 1])
+    # include_vas = trial.suggest_categorical('include_vas', [0, 1])
     replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
     transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
     weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1, 2, 3])
@@ -66,6 +67,11 @@ def CRUK_training(trial):
     weight_criterion = 4#trial.suggest_categorical('weight_criterion', [0, 1, 2, 3])
     alpha = trial.suggest_float('alpha', 0, 1.)
     gamma = trial.suggest_float('gamma', 0, 5.)
+
+    if raw_or_processed == 'raw':
+        raw = True
+    else:
+        raw = False
     if on_CSF:
         working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
         processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
@@ -80,8 +86,8 @@ def CRUK_training(trial):
             data_name = 'CRUK_local_raw_base'
         else:
             data_name = 'CRUK_local_processed_base'
-    best_model_name = '{}_lr{}x{}_{}{}_v{}p{}r{}_d{}_{}_t{}_a{}y{}_wc{}_ws{}'.format(
-        base_name, round_to_(lr), batch_size, resnet_size, pooling_type, include_vas, pre_trained,
+    best_model_name = '{}_lr{}x{}_{}{}_r{}p{}r{}_d{}_{}_t{}_a{}y{}_wc{}_ws{}'.format(
+        base_name, round_to_(lr), batch_size, resnet_size, pooling_type, raw_or_processed, pre_trained,
         replicate, round_to_(dropout), op_choice, transformed, round_to_(alpha), round_to_(gamma), weight_criterion, weight_samples)
 
     print("Accessing data from", processed_dataset_path, "/", data_name, "\nConfig", best_model_name)
@@ -178,7 +184,7 @@ def CRUK_training(trial):
             #     print("Image is corrupted", torch.sum(torch.isnan(image_data), dim=1))
             #     nan_mask = torch.isnan(image_data)
             #     image_data[nan_mask] = 0
-            CRUK_data = torch.stack(CRUK_data).to('cuda')
+            CRUK_data = CRUK_data.T
 
             # Forward
             print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
@@ -210,7 +216,7 @@ def CRUK_training(trial):
 
                 print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
                 for i, auc in enumerate(aucs):
-                    auc.update(outputs[:, i], CRUK_data[i])
+                    auc.update(outputs[:, i*2], CRUK_data[i])
 
                 for i in range(num_classes):
                     all_preds[i].extend(outputs[:, i].cpu().numpy())

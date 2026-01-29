@@ -14,7 +14,7 @@ weight_samples = 1
 weight_loss = 0
 transformed = 0
 
-raw = False
+raw = True
 pvas_loader = False
 split_CC_and_MLO = False
 CC_or_MLO = 'CC'
@@ -32,14 +32,18 @@ combined_processing = True
 on_CSF = True
 optuna_optimisation = True
 recurrence_optimisation = True
+CRUK_optimisation = True
 
 if on_CSF:
     # data_name = 'local_pvas_vas_raw_base'
-    # working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
-    # processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
-    working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
-    processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
-    if recurrence_optimisation:
+    working_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/training/'
+    processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
+    # working_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/training/'
+    # processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
+    if CRUK_optimisation:
+        data_name = 'medici_classification_preprocessed_data'
+        base_name = 'first_CRUK'
+    elif recurrence_optimisation:
         data_name = 'medici_classification_preprocessed_data'
         base_name = 'focal_sample_52525'
     elif mosaics_processing:
@@ -86,8 +90,12 @@ else:
     # processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     processed_dataset_path = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data/'
     # data_name = 'procas_pvas_vbd_processed_per_im_base'
-    data_name = 'local_pvas_vas_raw_base'
+    # data_name = 'local_pvas_vas_raw_base'
     # data_name = 'procas_pvas_vas_raw_base'
+    if raw:
+        data_name = 'CRUK_local_raw_base'
+    else:
+        data_name = 'CRUK_local_processed_base'
     priors_name = 'priors_pvas_vas_raw_base'
     if split_CC_and_MLO:
         base_name += '_' + CC_or_MLO

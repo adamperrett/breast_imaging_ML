@@ -30,12 +30,16 @@ csv_name = 'PROCAS_full_data_16-03-2024.csv'
 csv_file_pointer = os.path.join(csv_directory, csv_name)
 cancers_name = 'PROCAS_CANCER_DATABASE_first_process.csv'
 cancers_file_pointer = os.path.join(csv_directory, cancers_name)
-save_name = 'processed_PROCAS_full_data_with_cancer_data.csv'
+assure_name = 'PROCAS_reference.csv'
+assure_file_pointer = os.path.join(csv_directory, assure_name)
 
 csv_data = pd.read_csv(csv_file_pointer, sep=',')
 cancers_data = pd.read_csv(cancers_file_pointer, sep=',')
+assure_labels = pd.read_csv(assure_file_pointer, sep=',')
 
-csv_processed_previously = False
+save_name = 'processed_PROCAS_full_data_with_cancer_data.csv'
+
+csv_processed_previously = True
 
 class CaseInsensitiveDict(dict):
     def __init__(self, *args, **kwargs):
@@ -1443,7 +1447,13 @@ if not csv_processed_previously:
     # socioeconomic score (from postcode (etc?))
 
     # Save processed CSV next to script/exe
-    processed_path = resource_path(save_name)
+    proCeSsVed = pd.merge(
+        proCeSsVed,
+        assure_labels,
+        left_on="ProcID",
+        right_on="ProcID",
+        how="outer"   # inner, left, right, outer
+    )
     combined_data = pd.merge(
         proCeSsVed,
         proCeSsVed_cancer,
@@ -1451,6 +1461,7 @@ if not csv_processed_previously:
         right_on="c_Identifier",
         how="outer"   # inner, left, right, outer
     )
+    processed_path = resource_path(save_name)
     combined_data.to_csv(processed_path, index=False)
 
     # Save to new CSV

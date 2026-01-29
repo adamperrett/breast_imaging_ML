@@ -69,6 +69,52 @@ class MILPooling(nn.Module):
         return weighted_attention_matrix
 
 
+class CRUK_MIL_Model(nn.Module):
+    def __init__(self, pretrain, replicate, resnet_size, pooling_type='attention', dropout=0.5,
+                 split=False, num_classes=15):
+        super(CRUK_MIL_Model, self).__init__()
+
+        self.replicate = replicate
+        self.extractor = returnModel(pretrain, replicate, resnet_size)
+        if resnet_size in [18, 34]:
+            self.D = 512
+        elif resnet_size in [50, 101, 152]:
+            self.D = 2048
+        self.K = 1024  # intermediate
+        self.L = 512
+        self.MIL = MILPooling(self.L, pooling_type)
+        self.split = split
+        if not split:
+            self.D += 2
+
+        ## Standard regressor
+        self.regressor = nn.Sequential(
+            nn.Linear(self.D, self.K),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+            nn.Linear(self.K, self.L),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+        )
+        self.output = nn.Linear(self.L, num_classes*2)  # n binary classifications squished together
+
+    ## Feed forward function
+    def forward(self, image_data):
+        image_features = []
+        for image, view in image_data:
+            image = image.to('cuda')
+            is_it_mlo = torch.stack([torch.tensor([0, 1] if v == 'MLO' else [1, 0]).to('cuda') for v in view])
+            H = self.extractor(image.unsqueeze(1))
+            if not self.split:
+                H = torch.hstack([H, is_it_mlo])
+            r = self.regressor(H.to(torch.float32))
+            image_features.append(r)
+        image_features = torch.stack(image_features)
+        mil = self.MIL(image_features)
+        output = self.output(mil)
+        return output
+
+
 class Recurrence_MIL_Model(nn.Module):
     def __init__(self, pretrain, replicate, resnet_size, pooling_type='attention', dropout=0.5, split=True,
                  num_manufacturers=6, num_classes=4, include_vas=True):

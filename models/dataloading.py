@@ -23,6 +23,38 @@ else:
     device = 'cpu'
 
 
+class CRUKLoader(Dataset):
+    def __init__(self, dataset, transform=None, weights=None):
+        self.transform = transform
+        self.weights = weights
+        self.dataset = dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        if idx >= len(self.dataset):
+            print(f"\nBad idx: {idx}, dataset length: {len(self.dataset)}\n")
+        image_data = self.dataset[idx]
+        transformed_image_data = []
+        image = image_data[0]
+        patient_data = image_data[1]
+        patient_dir = image_data[2]
+        file_name = image_data[3]
+        view = patient_data['view']
+        class_labels = []
+        for subtype in patient_data:
+            if subtype == 'view' or subtype == 'side':
+                continue
+            class_labels.append(patient_data[subtype])
+        class_labels = torch.tensor(class_labels)
+        if self.transform:
+            transformed_image = self.transform(image)
+            image = transformed_image
+        transformed_image_data.append([image, view])
+
+        return transformed_image_data, class_labels
+
 class RecurrenceLoader(Dataset):
     def __init__(self, dataset, transform=None, by_patient_or_by_image='patient', weights=None):
         self.transform = transform
@@ -319,6 +351,13 @@ def split_by_patient_and_stratefy_by_manufacturer(dataset_path, train_ratio, val
         torch.backends.cudnn.benchmark = False
 
     print("Grouping entries by the unique key", time.localtime())
+    # different_classes = [
+    #     'breastrec',
+    #     'distrfievent',
+    #     'local',
+    #     'Ipsbreast',
+    #     'Contrabreast',
+    # ]
     patient_manufacturers = []
     patient_list = []
     manufactorer_index = {}
@@ -374,6 +413,52 @@ def split_by_patient_and_stratefy_by_manufacturer(dataset_path, train_ratio, val
                        for cl in range(len(manufactorer_index))})
     print("Testing", {cl:np.sum([[a == cl for a in b] for b in test_manufacturer])
                        for cl in range(len(manufactorer_index))})
+
+    return train_data, val_data, test_data
+
+def split_and_group_for_CRUK(dataset_path, train_ratio, val_ratio, seed_value=0):
+    print("Loading data to split by patient", time.localtime())
+    dataset = torch.load(dataset_path)
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed_value)
+        torch.cuda.manual_seed_all(seed_value)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    print("Grouping entries by the unique key", time.localtime())
+    patients = []
+    for entry in tqdm(dataset):
+        key = entry[-2]  # The second last entry where the patient id is
+        if key not in patients:
+            patients.append(key)
+
+    # Shuffle the patient data for randomness
+    random.shuffle(patients)
+
+    # Calculate the split sizes based on the number of patients
+    train_end = int(len(patients) * train_ratio)
+    val_end = train_end + int(len(patients) * val_ratio)
+
+    # Split the patient data into train, validation, and test sets
+    train_patients = patients[:train_end]
+    val_patients = patients[train_end:val_end]
+    test_patients = patients[val_end:]
+
+    train_data = []
+    val_data = []
+    test_data = []
+    for entry in tqdm(dataset):
+        if entry[-2] in train_patients:
+            train_data.append(entry)
+        elif entry[-2] in val_patients:
+            val_data.append(entry)
+        elif entry[-2] in test_patients:
+            test_data.append(entry)
+        else:
+            print("Indexing is broken")
 
     return train_data, val_data, test_data
 
@@ -871,6 +956,49 @@ def return_medici_loaders(file_name, transformed, weighted_loss, weighted_sampli
 
     return train_loader, val_loader, test_loader
 
+def return_CRUK_loaders(file_name, dir_path, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0,
+                       only_testing=False):
+    print("Beginning data loading", time.localtime())
+
+    full_processed_data_address = os.path.join(dir_path, file_name+'.pth')
+
+    global mean, std
+
+    print("Processing data for the first time", time.localtime())
+    # Splitting the dataset
+    train_ratio, val_ratio, test_ratio = 0.5, 0.25, 0.25
+    train_data, val_data, test_data = split_and_group_for_CRUK(
+        full_processed_data_address,
+        train_ratio, val_ratio, seed_value)
+
+    sample_weights = None
+
+    if transformed:
+        # Define your augmentations
+        data_transforms = transforms.Compose([
+            transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1), shear=5),
+            # Assuming images are PIL images; if not, you'll need to adjust or implement suitable transformations
+        ])
+    else:
+        data_transforms = None
+
+    # Create Dataset
+    print("Creating Dataset", time.localtime())
+    train_dataset = CRUKLoader(train_data, transform=data_transforms, weights=sample_weights)
+    val_dataset = CRUKLoader(val_data)
+    test_dataset = CRUKLoader(test_data)
+
+    # Create DataLoaders
+    print("Creating DataLoaders for", device, time.localtime())
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                              generator=torch.Generator(device=device), drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                            generator=torch.Generator(device=device), drop_last=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                             generator=torch.Generator(device=device), drop_last=True)
+
+    return train_loader, val_loader, test_loader
+
 def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sampling, batch_size, seed_value=0,
                        only_testing=False):
     print("Beginning data loading", time.localtime())
@@ -894,17 +1022,12 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
          if 1 in train_data[patient] and not train_data[patient][1]['failed']],
         [train_data[patient][3]['score'] for patient in train_data
          if 3 in train_data[patient] and not train_data[patient][3]['failed']]])
-    classes_0 = np.hstack(
-        [train_data[patient]['recurrence']['breastrec'] for patient in train_data
-         if 0 in train_data[patient] and not train_data[patient][0]['failed']])
-    classes_013 = np.hstack(
+    classes = np.hstack(
         [train_data[patient]['recurrence']['breastrec'] for patient in train_data
          if 0 in train_data[patient] and not train_data[patient][0]['failed']
          and 1 in train_data[patient] and not train_data[patient][1]['failed']
          and 3 in train_data[patient] and not train_data[patient][3]['failed']])
-    classes = np.hstack(
-        [train_data[patient]['recurrence']['breastrec'] for patient in train_data])
-    computed_weights = np.abs(classes_013 - 0.03)  # compute_sample_weights(targets)
+    computed_weights = np.abs(classes - 0.03)  # compute_sample_weights(targets)
 
     mean, std = compute_target_statistics(targets)
 
@@ -915,8 +1038,6 @@ def return_recurrence_loaders(file_name, transformed, weighted_loss, weighted_sa
             sample_weights = 1 - computed_weights
         else:
             sample_weights = (computed_weights * 0) + 0.5
-        print("\n\n sw {} td {} c {} c0 {} c013 {}\n\n".format(len(sample_weights), len(train_data), len(classes),
-                                                               len(classes_0), len(classes_013)))
     else:
         sample_weights = None
 

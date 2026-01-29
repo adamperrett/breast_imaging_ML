@@ -16,6 +16,60 @@ from torchmetrics.classification import BinaryAUROC
 from sklearn.metrics import accuracy_score
 
 
+def evaluate_CRUK(model, dataloader, criterion, subtype_mapping):
+    model.eval()
+    running_loss = 0.0
+    num_classes = len(subtype_mapping)
+    all_preds = [[] for _ in range(num_classes)]
+    all_labels = [[] for _ in range(num_classes)]
+
+    with torch.no_grad():
+        aucs = [BinaryAUROC() for _ in range(num_classes)]
+        for image_data, CRUK_data in tqdm(dataloader):
+
+            CRUK_data = CRUK_data.T
+
+            outputs = model.forward(image_data).to('cuda')
+            # test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
+            # test_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
+            # loss = criterion(test_outputs_original_scale, test_targets_original_scale).mean()
+            # running_loss += loss.item() * inputs.size(0)
+            split_losses = []
+            for i, t in enumerate(CRUK_data):
+                loss = criterion(outputs[:, [2*i, 2*i+1]], torch.vstack([1-t.to(torch.float32), t.to(torch.float32)]).T)
+                split_losses.append(loss)
+
+            total_loss = torch.sum(torch.stack(split_losses), dim=1).to('cpu')
+            running_loss += total_loss
+            # train_loss += weighted_loss.item() * inputs.size(0)
+
+            print("Before scaling loss\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
+            for i, auc in enumerate(aucs):
+                auc.update(outputs[:, i*2], CRUK_data[i])
+
+            for i in range(num_classes):
+                all_preds[i].extend(outputs[:, i].cpu().numpy())
+                all_labels[i].extend(CRUK_data[i].cpu().numpy())
+
+            # all_targets.extend(test_targets_original_scale.cpu().numpy())
+            # all_predictions.extend(test_outputs_original_scale.cpu().numpy())
+            # all_manufacturers.extend(manu)
+            # if return_names:
+            #     patients.extend(patient)
+            #     timepoints.extend(timepoint)
+
+    epoch_loss = running_loss / len(dataloader.dataset)
+    auc_scores = torch.stack([auc.compute() for auc in aucs])
+    accuracies = []
+    full_binary = []
+    for i in range(num_classes):
+        preds_binary = (np.array(all_preds[i]) > 0.5).astype(int)  # Apply threshold for binary classification
+        acc = accuracy_score(all_labels[i], preds_binary)
+        accuracies.append(acc)
+        full_binary.append(preds_binary)
+    return epoch_loss, all_labels, all_preds, torch.tensor(accuracies), full_binary, auc_scores
+
+
 def evaluate_recurrence(model, dataloader, criterion, inverse_standardize_targets, mean, std,
                     num_manufacturers, manufacturer_mapping, recurrence_mapping,
                     return_names=False, split_CC_and_MLO=True, r2_weighting_offset=0):
@@ -115,7 +169,7 @@ def evaluate_medici(model, dataloader, criterion, inverse_standardize_targets, m
 
             outputs = model.forward(inputs.unsqueeze(1), is_it_mlo.cuda(), manufacturer).to('cpu')
             test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
-            test_targets_original_scale = targets.float() #inverse_standardize_targets(targets.float(), mean, std)
+            test_targets_original_scale = targets.float().to('cpu') #inverse_standardize_targets(targets.float(), mean, std)
             loss = criterion(test_outputs_original_scale, test_targets_original_scale).mean()
             running_loss += loss.item() * inputs.size(0)
 
