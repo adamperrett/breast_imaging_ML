@@ -323,7 +323,7 @@ def CRUK_training(trial):
             for attempt in range(40):
                 try:
                     if improving_loss_or_r2 == 'loss':
-                        trial.report(val_loss, epoch)
+                        trial.report(torch.mean(val_loss), epoch)
                     else:
                         trial.report(torch.mean(val_auc), epoch)
                     if trial.should_prune():
