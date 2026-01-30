@@ -142,7 +142,7 @@ def CRUK_training(trial):
     # Initialize model, criterion, optimizer
     # model = SimpleCNN().to(device)
     #edit cuda
-    print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
+    # print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
     model = CRUK_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
                                  num_classes=num_classes).to('cuda')
     epsilon = 0.
@@ -210,9 +210,9 @@ def CRUK_training(trial):
             CRUK_data = CRUK_data.T[train_indexes]
 
             # Forward
-            print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
+            # print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             outputs = model.forward(image_data)  # Add channel dimension
-            print("Before losses\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
+            # print("Before losses\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             # losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
             split_losses = []
             for i, t in enumerate(CRUK_data):
@@ -222,7 +222,7 @@ def CRUK_training(trial):
             # weighted_loss = (losses * weights).mean()  # Weighted loss
 
             # Backward + optimize
-            print("Before backward\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
+            # print("Before backward\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             for n, l in enumerate(split_losses):
                 if n + 1 < len(split_losses):
                     l.mean().backward(retain_graph=True)
@@ -237,7 +237,7 @@ def CRUK_training(trial):
                 train_loss += total_loss
                 # train_loss += weighted_loss.item() * inputs.size(0)
 
-                print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
+                # print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
                 for i, auc in enumerate(aucs):
                     auc.update(outputs[:, i*2], CRUK_data[i])
 
