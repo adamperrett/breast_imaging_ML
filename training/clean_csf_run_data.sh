@@ -1,6 +1,6 @@
 #!/bin/bash
 
-scancel submit_opt*
+scancel -u $USER
 rm *.db
 rm -rf results/*
 rm ../models/l_*
