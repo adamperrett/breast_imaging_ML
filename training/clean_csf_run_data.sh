@@ -11,6 +11,7 @@ rm submit_optuna_recurrence_job.*
 rm submit_optuna_mosaic_job.*
 rm submit_optuna_medici_job.*
 rm submit_optuna_CRUK_job.*
+rm slurm-*
 echo ""
 echo "     remember to stop the job submitting script"
 echo ""
