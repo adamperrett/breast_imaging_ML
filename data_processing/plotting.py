@@ -53,10 +53,10 @@ def plot_auc_curves(all_labels, all_preds, data_subset, task_names=None, save_lo
             print(f"Skipping AUC for Task {i + 1} {data_subset}: Only one class present in validation labels.")
             auc_score = 0.0
 
-        if task_names:
-            label = f"{task_names[i]} (AUC = {auc_score:.3f})"
-        else:
-            label = f"Task {i + 1} (AUC = {auc_score:.3f})"
+        # if task_names:
+        label = f"{task_names[i]} (AUC = {auc_score:.3f})"
+        # else:
+        #     label = f"Task {i + 1} (AUC = {auc_score:.3f})"
 
         ax.plot(fpr, tpr, label=label)
 

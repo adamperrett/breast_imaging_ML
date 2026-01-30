@@ -98,22 +98,45 @@ def CRUK_training(trial):
                                                                       seed_value=seed_value)
 
     subtype_mapping = [
-        'DCIS',
-        'IDC',
-        'LCIS',
-        'Metastatic',
-        'Mucinous',
-        'Phyllodes',
-        'Papillary',
-        'Apocrine',
-        'Adenoid Cystic',
-        'Metaplastic',
-        'Medullary',
-        'Tubular',
-        'ILC',
-        'Invasive Cribriform',
-        'DNK',
+        'DCIS',  # 1391
+        'IDC',  # 1356
+        'LCIS',  # 160
+        'Metastatic',  # 5
+        'Mucinous',  # 35
+        'Phyllodes',  # 2
+        'Papillary',  # 20
+        'Apocrine',  # 7
+        'Adenoid Cystic',  # 1
+        'Metaplastic',  # 5
+        'Medullary',  # 2
+        'Tubular',  # 36
+        'ILC',  # 185
+        'Invasive Cribriform',  # 11
+        'DNK',  # 5
     ]
+    train_subtype = {
+        'DCIS': True,  # 1391
+        'IDC': True,  # 1356
+        'LCIS': False,  # 160
+        'Metastatic': False,  # 5
+        'Mucinous': False,  # 35
+        'Phyllodes': False,  # 2
+        'Papillary': False,  # 20
+        'Apocrine': False,  # 7
+        'Adenoid Cystic': False,  # 1
+        'Metaplastic': False,  # 5
+        'Medullary': False,  # 2
+        'Tubular': False,  # 36
+        'ILC': False,  # 185
+        'Invasive Cribriform': False,  # 11
+        'DNK': False,  # 5
+    }
+    train_indexes = []
+    for i, entry in enumerate(train_subtype):
+        if train_subtype[entry]:
+            train_indexes.append(i)
+    train_indexes = np.array(train_indexes)
+    subtype_mapping = np.array(subtype_mapping)[train_indexes]
     num_classes = len(subtype_mapping)
 
     # Initialize model, criterion, optimizer
@@ -184,7 +207,7 @@ def CRUK_training(trial):
             #     print("Image is corrupted", torch.sum(torch.isnan(image_data), dim=1))
             #     nan_mask = torch.isnan(image_data)
             #     image_data[nan_mask] = 0
-            CRUK_data = CRUK_data.T
+            CRUK_data = CRUK_data.T[train_indexes]
 
             # Forward
             print("Before output\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
@@ -242,10 +265,10 @@ def CRUK_training(trial):
         # Validation
         print("Evaluating on the validation set")
         val_loss, val_labels, val_preds, val_acc, val_class, val_auc = \
-            evaluate_CRUK(model, val_loader, criterion, subtype_mapping)
+            evaluate_CRUK(model, val_loader, criterion, subtype_mapping, train_indexes)
         print("Evaluating on the test set")
         test_loss, test_labels, test_preds, test_acc, test_class, test_auc = \
-            evaluate_CRUK(model, test_loader, criterion, subtype_mapping)
+            evaluate_CRUK(model, test_loader, criterion, subtype_mapping, train_indexes)
         print("Evaluating on the pilot set")
         # pilot_loss, pilot_labels, pilot_preds, pilot_r2, pilot_r2w, pilot_err, pilot_conf, pilot_manu = \
         #     evaluate_CRUK(model, pilot_loader, criterion,
@@ -386,13 +409,13 @@ def CRUK_training(trial):
     # Evaluating on all datasets: train, val, test
     print("Final evaluation on the train set")
     train_loss, train_labels, train_preds, train_acc, train_class, train_auc = \
-        evaluate_CRUK(model, train_loader, criterion, subtype_mapping)
+        evaluate_CRUK(model, train_loader, criterion, subtype_mapping, train_indexes)
     print("Final evaluation on the validation set")
     val_loss, val_labels, val_preds, val_acc, val_class, val_auc = \
-        evaluate_CRUK(model, val_loader, criterion, subtype_mapping)
+        evaluate_CRUK(model, val_loader, criterion, subtype_mapping, train_indexes)
     print("Final evaluation on the test set")
     test_loss, test_labels, test_preds, test_acc, test_class, test_auc = \
-        evaluate_CRUK(model, test_loader, criterion, subtype_mapping)
+        evaluate_CRUK(model, test_loader, criterion, subtype_mapping, train_indexes)
     # print("Final evaluation on the pilot set")
     # pilot_loss, pilot_labels, pilot_preds, pilot_r2, pilot_r2w, pilot_err, pilot_conf, pilot_manu = \
     #     evaluate_CRUK(model, pilot_loader, criterion,

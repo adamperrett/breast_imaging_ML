@@ -16,7 +16,7 @@ from torchmetrics.classification import BinaryAUROC
 from sklearn.metrics import accuracy_score
 
 
-def evaluate_CRUK(model, dataloader, criterion, subtype_mapping):
+def evaluate_CRUK(model, dataloader, criterion, subtype_mapping, train_indexes):
     model.eval()
     running_loss = 0.0
     num_classes = len(subtype_mapping)
@@ -27,7 +27,7 @@ def evaluate_CRUK(model, dataloader, criterion, subtype_mapping):
         aucs = [BinaryAUROC() for _ in range(num_classes)]
         for image_data, CRUK_data in tqdm(dataloader):
 
-            CRUK_data = CRUK_data.T
+            CRUK_data = CRUK_data.T[train_indexes]
 
             outputs = model.forward(image_data).to('cuda')
             # test_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
