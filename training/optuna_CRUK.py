@@ -510,7 +510,7 @@ def CRUK_training(trial):
     print("Done")
 
     if improving_loss_or_r2 == 'loss':
-        return val_loss
+        return torch.mean(val_loss)
     else:
         return torch.mean(val_auc)
 
