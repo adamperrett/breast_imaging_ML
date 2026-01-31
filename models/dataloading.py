@@ -49,8 +49,8 @@ class CRUKLoader(Dataset):
             class_labels.append(patient_data[subtype])
         class_labels = torch.tensor(class_labels)
         if self.transform:
-            transformed_image = self.transform(image)
-            image = transformed_image
+            transformed_image = self.transform(image.unsqueeze(0))
+            image = transformed_image.squeeze(0)
         transformed_image_data.append([image, view])
 
         return transformed_image_data, class_labels

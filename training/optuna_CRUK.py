@@ -52,7 +52,7 @@ def CRUK_training(trial):
     global base_name
     lr = trial.suggest_float('lr', 3e-5, 1e-2, log=True)
     op_choice = 'adam' #trial.suggest_categorical('optimiser', ['adam', 'rms', 'sgd'])#, 'd_adam', 'd_sgd'])
-    batch_size = trial.suggest_int('batch_size', 2, 17)
+    batch_size = trial.suggest_int('batch_size', 2, 50)
     dropout = trial.suggest_float('dropout', 0, 0.8)
     raw_or_processed = trial.suggest_categorical('raw_or_processed', ['raw', 'processed'])
     # arch = trial.suggest_categorical('architecture', ['pvas', 'resnetrans'])
@@ -61,12 +61,12 @@ def CRUK_training(trial):
     pre_trained = 1 #trial.suggest_categorical('pre_trained', [0, 1])
     # include_vas = trial.suggest_categorical('include_vas', [0, 1])
     replicate = 0 #trial.suggest_categorical('replicate', [0, 1])
-    transformed = 0 #trial.suggest_categorical('transformed', [0, 1])
+    transformed = trial.suggest_categorical('transformed', [0, 1])
     weight_samples = 0 #trial.suggest_categorical('weight_samples', [0, 1, 2, 3])
     weight_loss = 0 #trial.suggest_categorical('weight_loss', [0, 1])
-    weight_criterion = 4#trial.suggest_categorical('weight_criterion', [0, 1, 2, 3])
-    alpha = trial.suggest_float('alpha', 0, 1.)
-    gamma = trial.suggest_float('gamma', 0, 5.)
+    weight_criterion = trial.suggest_categorical('weight_criterion', [0, 1, 2, 3])
+    # alpha = trial.suggest_float('alpha', 0, 1.)
+    # gamma = trial.suggest_float('gamma', 0, 5.)
 
     if raw_or_processed == 'raw':
         raw = True
@@ -86,9 +86,12 @@ def CRUK_training(trial):
             data_name = 'CRUK_local_raw_base'
         else:
             data_name = 'CRUK_local_processed_base'
-    best_model_name = '{}_lr{}x{}_{}{}_r{}p{}r{}_d{}_{}_t{}_a{}y{}_wc{}_ws{}'.format(
+    # best_model_name = '{}_lr{}x{}_{}{}_r{}p{}r{}_d{}_{}_t{}_a{}y{}_wc{}_ws{}'.format(
+    #     base_name, round_to_(lr), batch_size, resnet_size, pooling_type, raw_or_processed, pre_trained,
+    #     replicate, round_to_(dropout), op_choice, transformed, round_to_(alpha), round_to_(gamma), weight_criterion, weight_samples)
+    best_model_name = '{}_lr{}x{}_{}{}_r{}p{}r{}_d{}_{}_t{}_wc{}_ws{}'.format(
         base_name, round_to_(lr), batch_size, resnet_size, pooling_type, raw_or_processed, pre_trained,
-        replicate, round_to_(dropout), op_choice, transformed, round_to_(alpha), round_to_(gamma), weight_criterion, weight_samples)
+        replicate, round_to_(dropout), op_choice, transformed, weight_criterion, weight_samples)
 
     print("Accessing data from", processed_dataset_path, "/", data_name, "\nConfig", best_model_name)
     print(time.localtime())
