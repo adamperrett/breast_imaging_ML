@@ -36,7 +36,8 @@ def evaluate_CRUK(model, dataloader, criterion, subtype_mapping, train_indexes):
             # running_loss += loss.item() * inputs.size(0)
             split_losses = []
             for i, t in enumerate(CRUK_data):
-                loss = criterion(outputs[:, [2*i, 2*i+1]], torch.vstack([1-t.to(torch.float32), t.to(torch.float32)]).T)
+                # loss = criterion(outputs[:, [2*i, 2*i+1]], torch.vstack([1-t.to(torch.float32), t.to(torch.float32)]).T)
+                loss = criterion(outputs[:, [2*i, 2*i+1]], t.T.long())
                 split_losses.append(loss)
 
             total_loss = torch.sum(torch.stack(split_losses), dim=1).to('cpu')
@@ -44,12 +45,15 @@ def evaluate_CRUK(model, dataloader, criterion, subtype_mapping, train_indexes):
             # train_loss += weighted_loss.item() * inputs.size(0)
 
             # print("Before scaling loss\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
-            for i, auc in enumerate(aucs):
-                auc.update(outputs[:, i*2], CRUK_data[i])
 
             for i in range(num_classes):
-                all_preds[i].extend(outputs[:, i].cpu().numpy())
+                sm = torch.softmax(outputs[:, [2*i, 2*i+1]], dim=1)
+                prediction = torch.max(sm, dim=1)[1]
+                all_preds[i].extend(prediction.cpu().numpy())
                 all_labels[i].extend(CRUK_data[i].cpu().numpy())
+
+            for i, auc in enumerate(aucs):
+                auc.update(prediction, CRUK_data[i])
 
             # all_targets.extend(test_targets_original_scale.cpu().numpy())
             # all_predictions.extend(test_outputs_original_scale.cpu().numpy())

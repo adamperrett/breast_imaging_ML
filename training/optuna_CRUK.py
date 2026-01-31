@@ -219,7 +219,8 @@ def CRUK_training(trial):
             # losses = criterion(outputs.squeeze(1), targets.float())  # Get losses for each sample
             split_losses = []
             for i, t in enumerate(CRUK_data):
-                loss = criterion(outputs[:, [2*i, 2*i+1]], torch.vstack([1-t.to(torch.float32), t.to(torch.float32)]).T)
+                # loss = criterion(outputs[:, [2*i, 2*i+1]], torch.vstack([1-t.to(torch.float32), t.to(torch.float32)]).T)
+                loss = criterion(outputs[:, [2*i, 2*i+1]], t.T.long())
                 split_losses.append(loss)
             # print("Before weighting\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
             # weighted_loss = (losses * weights).mean()  # Weighted loss
@@ -240,12 +241,15 @@ def CRUK_training(trial):
                 train_loss += total_loss
                 # train_loss += weighted_loss.item() * inputs.size(0)
 
+                for i in range(num_classes):
+                    sm = torch.softmax(outputs[:, [2*i, 2*i+1]], dim=1)
+                    prediction = torch.max(sm, dim=1)[1]
+                    all_preds[i].extend(prediction.cpu().numpy())
+
                 # print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
                 for i, auc in enumerate(aucs):
-                    auc.update(outputs[:, i*2], CRUK_data[i])
+                    auc.update(prediction, CRUK_data[i])
 
-                for i in range(num_classes):
-                    all_preds[i].extend(outputs[:, i].cpu().numpy())
                     all_labels[i].extend(CRUK_data[i].cpu().numpy())
             # with torch.no_grad():
             #     train_outputs_original_scale = outputs.squeeze(1) #inverse_standardize_targets(outputs.squeeze(1), mean, std)
@@ -260,10 +264,9 @@ def CRUK_training(trial):
         train_acc = []
         train_class = []
         for i in range(num_classes):
-            preds_binary = (np.array(all_preds[i]) > 0.5).astype(int)  # Apply threshold for binary classification
-            acc = accuracy_score(all_labels[i], preds_binary)
+            acc = accuracy_score(all_labels[i], all_preds[i])
             train_acc.append(acc)
-            train_class.append(preds_binary)
+            train_class.append(all_preds[i])
         train_acc = torch.tensor(train_acc)
         # Validation
         print("Evaluating on the validation set")
