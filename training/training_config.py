@@ -42,7 +42,7 @@ if on_CSF:
     processed_dataset_path = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data/'
     if CRUK_optimisation:
         data_name = 'medici_classification_preprocessed_data'
-        base_name = 'DCIS_IDC'
+        base_name = 't_and_nof_DCIS_IDC'
     elif recurrence_optimisation:
         data_name = 'medici_classification_preprocessed_data'
         base_name = 'focal_sample_52525'
