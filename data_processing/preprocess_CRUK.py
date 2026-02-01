@@ -43,7 +43,7 @@ sns.set(style='dark')
 
 print("Reading data")
 
-raw = False  # Raw or processed data
+raw = True  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
 
 process_types = ['log']#, 'histo', 'clahe']  # only relevant to raw data
@@ -52,12 +52,16 @@ csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
-    save_name = 'CRUK'
+    save_name = 'CRUK_full'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
     save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
-    save_name = 'CRUK_local'
-csv_name = 'processed_PROCAS_full_data_only_cancers.csv'
+    save_name = 'CRUK_local_full'
+# =IF(AND(SUM(TD2:TR2)=0,LOWER(GV2)<>"yes"),1,0)
+if 'full' in save_name:
+    csv_name = 'processed_PROCAS_full_data_with_cancer_data.csv'
+else:
+    csv_name = 'processed_PROCAS_full_data_only_cancers.csv'
 cancer_data = pd.read_csv(os.path.join(csv_directory, csv_name), sep=',')
 
 if raw:
@@ -273,7 +277,10 @@ def process_images(parent_directory, patient_dir):
                 'ILC': patient_row['ILC'].item(),
                 'Invasive Cribriform': patient_row['Invasive Cribriform'].item(),
                 'DNK': patient_row['DNK'].item(),
+                'no_cancer': patient_row['no_cancer'].item(),
             }
+            # if patient_row['no_cancer'].item() == 1:
+            #     print("There are non cancers")
             dataset_entries[process_type].append((p_i,
                                                   image_data,
                                                   patient_dir, i_f))

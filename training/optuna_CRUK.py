@@ -116,6 +116,7 @@ def CRUK_training(trial):
         'ILC',  # 185
         'Invasive Cribriform',  # 11
         'DNK',  # 5
+        'no_cancer', # the rest
     ]
     train_subtype = {
         'DCIS': True,  # 1391
@@ -133,6 +134,7 @@ def CRUK_training(trial):
         'ILC': False,  # 185
         'Invasive Cribriform': False,  # 11
         'DNK': False,  # 5
+        'no_cancer': True, # the rest
     }
     train_indexes = []
     for i, entry in enumerate(train_subtype):
