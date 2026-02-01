@@ -1,7 +1,9 @@
 #!/bin/bash --login
-#$ -cwd
-#$ -pe smp.pe 5
-#$ -l mem2000
+
+#SBATCH -p serial  # Partition is required. Runs on an Intel hardware.
+                   # Or submit batch jobs to the "interactive" partition for AMD Genoa serial jobs.
+#SBATCH -t 7-0     # Wallclock limit (days-hours). Required!
+                   # Max permitted is 7 days (7-0).
 
 module load apps/binapps/anaconda3/4.2.0
 
