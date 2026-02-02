@@ -2,7 +2,7 @@
 
 #SBATCH -p himem  # Partition is required. Runs on an Intel hardware.
                    # Or submit batch jobs to the "interactive" partition for AMD Genoa serial jobs.
-#SBATCH -n 32
+#SBATCH -c 32
 #SBATCH -t 7-0     # Wallclock limit (days-hours). Required!
                    # Max permitted is 7 days (7-0).
 
