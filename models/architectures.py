@@ -82,7 +82,7 @@ class CRUK_MIL_Model(nn.Module):
             self.D = 2048
         self.K = 1024  # intermediate
         self.L = 512
-        self.MIL = MILPooling(self.L, pooling_type)
+        # self.MIL = MILPooling(self.L, pooling_type)
         self.split = split
         if not split:
             self.D += 2
@@ -110,8 +110,8 @@ class CRUK_MIL_Model(nn.Module):
             r = self.regressor(H.to(torch.float32))
             image_features.append(r)
         image_features = torch.stack(image_features)
-        mil = self.MIL(image_features)
-        output = self.output(mil)
+        # mil = self.MIL(image_features)
+        output = self.output(image_features).squeeze()
         return output
 
 

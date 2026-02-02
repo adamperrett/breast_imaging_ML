@@ -2,7 +2,7 @@ import sys
 
 
 num_epochs = 600
-patience = 10
+patience = 50
 improving_loss_or_r2 = 'loss'
 r2_weighting_offset = 0
 lr = 0.003

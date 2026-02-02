@@ -89,8 +89,8 @@ def CRUK_training(trial):
     # best_model_name = '{}_lr{}x{}_{}{}_r{}p{}r{}_d{}_{}_t{}_a{}y{}_wc{}_ws{}'.format(
     #     base_name, round_to_(lr), batch_size, resnet_size, pooling_type, raw_or_processed, pre_trained,
     #     replicate, round_to_(dropout), op_choice, transformed, round_to_(alpha), round_to_(gamma), weight_criterion, weight_samples)
-    best_model_name = '{}_lr{}x{}_{}{}_r{}p{}r{}_d{}_{}_t{}_wc{}_ws{}'.format(
-        base_name, round_to_(lr), batch_size, resnet_size, pooling_type, raw_or_processed, pre_trained,
+    best_model_name = '{}_lr{}x{}_{}{}_r{}_{}_d{}_{}_t{}_wc{}_ws{}'.format(
+        base_name, round_to_(lr), batch_size, resnet_size, raw_or_processed, pre_trained,
         replicate, round_to_(dropout), op_choice, transformed, weight_criterion, weight_samples)
 
     print("Accessing data from", processed_dataset_path, "/", data_name, "\nConfig", best_model_name)
@@ -134,7 +134,7 @@ def CRUK_training(trial):
         'ILC': False,  # 185
         'Invasive Cribriform': False,  # 11
         'DNK': False,  # 5
-        'no_cancer': True, # the rest
+        'no_cancer': True,  # the rest
     }
     train_indexes = []
     for i, entry in enumerate(train_subtype):
@@ -148,8 +148,9 @@ def CRUK_training(trial):
     # model = SimpleCNN().to(device)
     #edit cuda
     # print("Loading models\nCurrent GPU mem usage is", torch.cuda.memory_allocated() / (1024 ** 2))
-    model = CRUK_MIL_Model(pre_trained, replicate, resnet_size, pooling_type, dropout,
-                                 num_classes=num_classes).to('cuda')
+    model = CRUK_MIL_Model(pre_trained, replicate, resnet_size,
+                           dropout=dropout,
+                           num_classes=num_classes).to('cuda')
     epsilon = 0.
     # model = TransformerModel(epsilon=epsilon).to(device)
     # criterion = nn.BCEWithLogitsLoss(reduction='none')  # BCE for classification
@@ -243,13 +244,11 @@ def CRUK_training(trial):
                 train_loss += total_loss
                 # train_loss += weighted_loss.item() * inputs.size(0)
 
-                for i in range(num_classes):
+                # print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
+                for i, auc in enumerate(aucs):
                     sm = torch.softmax(outputs[:, [2*i, 2*i+1]], dim=1)
                     prediction = torch.max(sm, dim=1)[1]
                     all_preds[i].extend(prediction.cpu().numpy())
-
-                # print("Before scaling loss\nCurrent GPU mem usage is",  torch.cuda.memory_allocated() / (1024 ** 2))
-                for i, auc in enumerate(aucs):
                     auc.update(prediction, CRUK_data[i])
 
                     all_labels[i].extend(CRUK_data[i].cpu().numpy())
