@@ -52,11 +52,13 @@ csf = True
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
-    save_name = 'CRUK_full'
+    save_name = 'CRUK'
+    # save_name = 'CRUK_full_pp'
 else:
     csv_directory = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/csv_data'
     save_dir = 'C:/Users/adam_/PycharmProjects/breast_imaging_ML/processed_data'
-    save_name = 'CRUK_local_full'
+    save_name = 'CRUK_local'
+    # save_name = 'CRUK_local_full_pp'
 # =IF(AND(SUM(TD2:TR2)=0,LOWER(GV2)<>"yes"),1,0)
 if 'full' in save_name:
     csv_name = 'processed_PROCAS_full_data_with_cancer_data.csv'
