@@ -43,12 +43,12 @@ sns.set(style='dark')
 
 print("Reading data")
 
-raw = True  # Raw or processed data
+raw = False  # Raw or processed data
 creating_pvas_loader = True  # if true process types makes no difference
 
 process_types = ['log']#, 'histo', 'clahe']  # only relevant to raw data
 
-csf = True
+csf = False
 if csf:
     csv_directory = '/mnt/bmh01-rds/assure/csv_dir/'
     save_dir = '/mnt/iusers01/gb01/mbaxrap7/scratch/breast_imaging_ML/processed_data'
@@ -322,8 +322,9 @@ def preprocess_and_zip_all_images(parent_directory):
         if processed_images == None:
             continue
         for process_type in dataset_entries:
-            for stuff in processed_images[process_type]:
-                dataset_entries[process_type].append(stuff)
+            # for stuff in processed_images[process_type]:
+            #     dataset_entries[process_type].append(stuff)
+            dataset_entries[process_type].append(processed_images[process_type])
 
     return dataset_entries
 
