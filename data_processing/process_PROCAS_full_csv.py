@@ -483,7 +483,7 @@ string_mapping = {
     'cancer death': {
         'no': 'No',     # n=89
         'yes': 'Yes',   # n=84
-        'else': 'Yes',  # n=515 (it's dates, but should this just be Yes?) todo fix this
+        'else': 'No',  # n=515 (it's dates, but should this just be Yes?) todo fix this
         '': 'Blank'     # n=57215
     },
     'alcohol death': {
